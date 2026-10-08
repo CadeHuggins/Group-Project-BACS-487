@@ -24,7 +24,7 @@
         input, select { width: 100%; padding: .5rem; border: 1px solid #ccc; box-sizing: border-box; }
         button {background: #c9a227; color: #0b2545; border: 0; padding: .6rem 1.2rem; font-weight: bold; cursor: pointer; margin-top: 1rem; }
         section {display: none; }
-        section.active { diplay: block; }
+        section.active { display: block; }
     </style>
   </head>
   <body>
@@ -74,13 +74,13 @@
     </main>
     <script>
       //Simple page switching only. No data is saved yet.
-      documment.querySelectorAll("[data=page]").forEach)link => {
+      documment.querySelectorAll("[data-page]").forEach(link => {
         link.addEventListener("click", e => {
           e.preventDefault();
           document.querySelectorAll("section").forEach(s => s.classList.toggle("active", s.id === link.dataset.page));
           document.querySelectorAll("nav a").forEach(a => a.classList.toggle("active", a.dataset.page === link.dataset.page));
         });
-      });
+      })
     </script>
   </body>
 </html>
