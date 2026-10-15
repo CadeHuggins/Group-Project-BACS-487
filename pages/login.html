@@ -4,13 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Login | Application Tracker</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
 <header>
   <h1>Application <span>Tracker</span></h1>
-  <nav><a href="login.html" class="active">Login</a><a href="register.html">Register</a></nav>
+  <nav><a href="pages/login.html" class="active">Login</a><a href="pages/register.html">Register</a></nav>
 </header>
 
 <main class="narrow">
@@ -36,10 +36,16 @@
   // belongs to the ASP.NET Core Identity backend.
   $("login-form").addEventListener("submit", e => {
     e.preventDefault();
-    const name = $("username").value.trim();
-    if (!name || !$("password").value) { $("error").classList.remove("hidden"); return; }
+    const entered = $("username").value.trim();
+    if (!entered || !$("password").value) { $("error").classList.remove("hidden"); return; }
+ 
     const user = Store.get("user", {});
-    Store.set("user", { ...user, name: user.username === name && user.name ? user.name : name, username: name });
+    const isSameAccount = entered.toLowerCase() === (user.username || "").toLowerCase()
+                       || entered.toLowerCase() === (user.email || "").toLowerCase();
+    if (!isSameAccount) {
+      // Different person than the one saved in this browser: start a fresh profile
+      Store.set("user", { name: entered.split("@")[0], username: entered.includes("@") ? "" : entered, email: entered.includes("@") ? entered : "" });
+    }
     location.href = "landing.html";
   });
 </script>
