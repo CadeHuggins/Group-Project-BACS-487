@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Application Tracker - Google Login</title>
+  <script src="https://accounts.google.com/gsi/client"
+          async defer></script>
+</head>
+<body>
+  <h1>Application Tracker</h1>
+  <h2>Google Sign-In Test</h2>
+
+  <div id="google-button"></div>
+  <p id="message"></p>
+  <pre id="result"></pre>
+
+  <script>
+    const CLIENT_ID = "68906324915-ep5ptlk975jpc0jr0gte8m184hkdlm4p.apps.googleusercontent.com";
+
+    window.addEventListener("load", () => {
+      google.accounts.id.initialize({
+        client_id: CLIENT_ID,
+        callback: handleGoogleLogin
+      });
+
+      google.accounts.id.renderButton(
+        document.getElementById("google-button"),
+        { theme: "outline", size: "large" }
+      );
+    });
+
+    async function handleGoogleLogin(response) {
+      document.getElementById("message").textContent =
+        "Signing in...";
+
+      try {
+        const res = await fetch("/api/auth/google", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            credential: response.credential
+          })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || "Login failed");
+        }
+
+        document.getElementById("message").textContent =
+          "Google login successful!";
+
+        document.getElementById("result").textContent =
+          JSON.stringify(data, null, 2);
+
+      } catch (error) {
+        document.getElementById("message").textContent =
+          "Login failed: " + error.message;
+      }
+    }
+  </script>
+</body>
+</html>

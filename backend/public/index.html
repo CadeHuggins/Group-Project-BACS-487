@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Application Tracker</title>
+    <style>
+      body { margin: 0; font-family: Arial, sans-serif; background: #f5f6f9; color: #222; }
+      header { background: #0b2545; border-bottom: 4px solid #c9a227; color: #fff; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .5rem; }
+        header h1 { margin: 0; font-size: 1.4rem; }
+        header h1 span { color: #c9a227; }
+        nav a { color: #fff; text-decoration: none; margin-left: 1rem; padding-bottom: 3px; }
+        nav a:hover, nav a.active { color: #c9a227; border-bottom: 2px solid #c9a227; }
+        main { max-width: 900px; margin: 0 auto; padding: 1.5rem; }
+        h2 { color: #0b2545; }
+        .box {background: #fff; border: 1px solid #ddd; border-top: 3px solid #0b2545; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+        .stats { display: flex; gap: 1rem; flex-wrap: wrap; }
+        .stats .box { flex: 1; min-width: 120px; text-align: center; }
+        .stats b { display: block; font-size: 1.8rem; color: #0b2545; }
+        table { width: 100%; border-collapse: collapse; background: #fff; }
+        th { background: #0b2545; color: #fff; text-align: left; padding: .6rem; }
+        td {padding: .6rem; color: #666; }
+        label { display: block; margin-top: .75rem; font-weight: bold; color: #0b2545; }
+        input, select { width: 100%; padding: .5rem; border: 1px solid #ccc; box-sizing: border-box; }
+        button {background: #c9a227; color: #0b2545; border: 0; padding: .6rem 1.2rem; font-weight: bold; cursor: pointer; margin-top: 1rem; }
+        section {
+        display: none;
+        }
+
+        body.logged-in section {
+            display: block;
+        }
+
+        body:not(.logged-in) nav {
+            display: none;
+        }
+
+        body.logged-in #login-screen {
+            display: none;
+        }
+
+        #add, #applications {
+            margin-top: 2rem;
+        }
+
+        .dashboard-heading {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        }
+
+        .modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.55);
+        z-index: 1000;
+        justify-content: center;
+        align-items: center;
+        padding: 1rem;
+        box-sizing: border-box;
+        }
+
+        .modal.open {
+        display: flex;
+        }
+
+        .modal-content {
+        background: white;
+        padding: 1.5rem;
+        width: 100%;
+        max-width: 500px;
+        max-height: 90vh;
+        overflow-y: auto;
+        position: relative;
+        box-sizing: border-box;
+        border-top: 4px solid #c9a227;
+        border-radius: 8px;
+        }
+
+        .close-modal {
+        position: absolute;
+        right: 1rem;
+        top: 0.5rem;
+        background: transparent;
+        color: #555;
+        font-size: 1.8rem;
+        padding: 0;
+        margin: 0;
+        }
+
+        .close-modal:hover {
+        color: #0b2545;
+        }
+
+        body.modal-open {
+        overflow: hidden;
+        }
+
+        .stats .box span {
+            display: block;
+            margin-top: 8px;
+            font-size: 14px;
+            color: #555;
+        }
+
+        #user-bar {
+            align-items: center;
+            gap: 15px;
+            color: white;
+            font-size: 14px;
+        }
+
+        #user-bar button {
+            margin-top: 0;
+            padding: 8px 16px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        @media (max-width: 600px) {
+            #user-bar {
+                flex-wrap: wrap;
+            }
+        }
+
+        .edit-button,
+        .delete-button {
+        margin: 0 5px 0 0;
+        padding: 7px 12px;
+        border-radius: 4px;
+        font-size: 13px;
+        }
+
+        .edit-button {
+        background: #0b2545;
+        color: white;
+        }
+
+        .delete-button {
+        background: #b42318;
+        color: white;
+        }
+
+        .edit-button:hover,
+        .delete-button:hover {
+        opacity: 0.85;
+        }
+    </style>
+    <script src="https://accounts.google.com/gsi/client"
+        async defer></script>
+  </head>
+  <body>
+    <header>
+        <h1>Application <span>Tracker</span></h1>
+
+        <div id="user-bar" style="display: none;">
+            <span>
+            Signed in as <strong id="user-name"></strong>
+            </span>
+
+            <button id="logout-button" type="button">
+            Logout
+            </button>
+        </div>
+    </header>
+    <main>
+      <div id="login-screen" class="box">
+        <h2>Welcome to Application Tracker</h2>
+        <p>Sign in with Google to manage your job applications.</p>
+
+        <div id="google-button"></div>
+        <p id="login-message"></p>
+        </div>
+
+        <section id="dashboard" class="active">
+            <div class="dashboard-heading">
+                <h2>Dashboard</h2>
+
+                <button type="button" id="open-application-modal">
+                + Add Application
+                </button>
+            </div>
+            <div class="stats">
+                <div class="box">
+                    <b id="total-count">0</b>
+                    <span>Total Applications</span>
+                </div>
+
+                <div class="box">
+                    <b id="applied-count">0</b>
+                    <span>Applied</span>
+                </div>
+
+                <div class="box">
+                    <b id="interview-count">0</b>
+                    <span>Interviews</span>
+                </div>
+
+                <div class="box">
+                    <b id="offer-count">0</b>
+                    <span>Offers</span>
+                </div>
+            </div>
+        </section>
+
+        <div id="application-modal" class="modal">
+            <div class="modal-content">
+
+                <button type="button" id="close-application-modal"
+                        class="close-modal" aria-label="Close popup">
+                &times;
+                </button>
+            <h2 id="modal-title">Add Application</h2>
+
+            <div class="box">
+                <form id="application-form">
+
+                <label for="company">Company</label>
+                <input type="text" id="company" required>
+
+                <label for="position">Position</label>
+                <input type="text" id="position" required>
+
+                <label for="status">Status</label>
+                <select id="status">
+                    <option>Saved</option>
+                    <option>Applied</option>
+                    <option>Interview</option>
+                    <option>Offer</option>
+                    <option>Rejected</option>
+                </select>
+
+                <label for="deadline">Deadline</label>
+                <input type="date" id="deadline">
+
+                <button type="submit" id="save-application-button">
+                    Save Application
+                </button>
+
+                <p id="form-message"></p>
+                </form>
+            </div>
+          </div>
+        </div>
+
+        <section id="applications">
+        <h2>Applications</h2>
+
+        <div class="box">
+            <table>
+            <thead>
+                <tr>
+                    <th>Company</th>
+                    <th>Position</th>
+                    <th>Status</th>
+                    <th>Deadline</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+
+            <tbody id="applications-table">
+                <tr>
+                <td colspan="4">Loading applications...</td>
+                </tr>
+            </tbody>
+            </table>
+        </div>
+        </section>
+        </main>
+        <script>
+            const CLIENT_ID = "68906324915-ep5ptlk975jpc0jr0gte8m184hkdlm4p.apps.googleusercontent.com";
+            
+            function showLoggedIn(student) {
+                document.body.classList.add("logged-in");
+                document.getElementById("user-bar").style.display = "flex";
+                document.getElementById("user-name").textContent = student.name;
+                document.getElementById("login-message").textContent = "";
+                loadApplications();
+            }
+
+            function showLoggedOut() {
+            document.body.classList.remove("logged-in");
+            document.getElementById("user-bar").style.display = "none";
+            }
+
+            async function handleGoogleLogin(response) {
+            const message = document.getElementById("login-message");
+            message.textContent = "Signing in...";
+
+            try {
+                const res = await fetch("/api/auth/google", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                credentials: "same-origin",
+                body: JSON.stringify({
+                    credential: response.credential
+                })
+                });
+
+                const data = await res.json();
+
+                if (!res.ok) {
+                throw new Error(data.error || "Google login failed");
+                }
+
+                showLoggedIn(data.student);
+
+            } catch (error) {
+                message.textContent = error.message;
+            }
+            }
+
+            async function checkSession() {
+            try {
+                const res = await fetch("/api/auth/me", {
+                credentials: "same-origin"
+                });
+
+                if (!res.ok) {
+                showLoggedOut();
+                return;
+                }
+
+                const data = await res.json();
+
+                showLoggedIn(data.student || data);
+
+            } catch (error) {
+                showLoggedOut();
+            }
+            }
+
+            document.getElementById("logout-button").addEventListener(
+            "click",
+            async () => {
+                try {
+                const res = await fetch("/api/auth/logout", {
+                    method: "POST",
+                    credentials: "same-origin"
+                });
+
+                if (!res.ok) {
+                    throw new Error("Logout failed");
+                }
+
+                if (window.google?.accounts?.id) {
+                    google.accounts.id.disableAutoSelect();
+                }
+
+                showLoggedOut();
+
+                } catch (error) {
+                alert(error.message);
+                }
+            }
+            );
+
+            window.addEventListener("load", () => {
+            if (window.google?.accounts?.id) {
+                google.accounts.id.initialize({
+                client_id: CLIENT_ID,
+                callback: handleGoogleLogin
+                });
+
+                google.accounts.id.renderButton(
+                document.getElementById("google-button"),
+                {
+                    theme: "outline",
+                    size: "large"
+                }
+                );
+            } else {
+                document.getElementById("login-message").textContent =
+                "Google Sign-In could not load. Refresh the page.";
+            }
+
+            checkSession();
+            });
+
+            document.getElementById("application-form").addEventListener(
+            "submit",
+            async (event) => {
+                event.preventDefault();
+
+                const message = document.getElementById("form-message");
+
+                const application = {
+                company: document.getElementById("company").value.trim(),
+                position: document.getElementById("position").value.trim(),
+                status: document.getElementById("status").value,
+                deadline: document.getElementById("deadline").value || null
+                };
+
+                message.textContent = "Saving application...";
+
+                try {
+                const isEditing = editingApplicationId !== null;
+
+                const url = isEditing
+                    ? `/api/applications/${editingApplicationId}`
+                    : "/api/applications";
+
+                const response = await fetch(url, {
+                    method: isEditing ? "PUT" : "POST",
+                    headers: {
+                    "Content-Type": "application/json"
+                    },
+                    credentials: "same-origin",
+                    body: JSON.stringify(application)
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || "Failed to save application");
+                }
+
+                message.textContent = isEditing
+                    ? "Application updated successfully!"
+                    : "Application saved successfully!";
+
+                await loadApplications();
+
+                closeApplicationModal();
+
+                document.getElementById("application-form").reset();
+
+                console.log("Saved application:", data.application);
+
+                } catch (error) {
+                message.textContent = "Error: " + error.message;
+                }
+            }
+            );
+
+            async function loadApplications() {
+            const table = document.getElementById("applications-table");
+
+            try {
+                const response = await fetch("/api/applications", {
+                credentials: "same-origin"
+                });
+
+                if (!response.ok) {
+                throw new Error("Failed to load applications");
+                }
+
+                const data = await response.json();
+
+                const applications = Array.isArray(data)
+                ? data
+                : data.applications;
+
+                if (!Array.isArray(applications)) {
+                throw new Error("Unexpected applications response");
+                }
+
+                table.replaceChildren();
+
+                if (applications.length === 0) {
+                const row = table.insertRow();
+                const cell = row.insertCell();
+                cell.colSpan = 4;
+                cell.textContent = "No applications yet.";
+                }
+                //
+                applications.forEach(application => {
+                    const row = table.insertRow();
+
+                    row.insertCell().textContent = application.company;
+                    row.insertCell().textContent = application.position;
+                    row.insertCell().textContent = application.status;
+
+                    const deadline = application.deadline
+                        ? String(application.deadline).slice(0, 10)
+                        : "—";
+
+                    row.insertCell().textContent = deadline;
+
+                    const actionsCell = row.insertCell();
+
+                    const editButton = document.createElement("button");
+                    editButton.textContent = "Edit";
+                    editButton.className = "edit-button";
+                    editButton.type = "button";
+                    editButton.addEventListener("click", () => {
+                        editApplication(application);
+                    });
+
+                    const deleteButton = document.createElement("button");
+                    deleteButton.textContent = "Delete";
+                    deleteButton.className = "delete-button";
+                    deleteButton.type = "button";
+                    deleteButton.addEventListener("click", () => {
+                        deleteApplication(application);
+                    });
+
+                    actionsCell.append(editButton, deleteButton);
+                });
+
+                document.getElementById("total-count").textContent =
+                applications.length;
+
+                document.getElementById("applied-count").textContent =
+                applications.filter(a => a.status === "Applied").length;
+
+                document.getElementById("interview-count").textContent =
+                applications.filter(a => a.status === "Interview").length;
+
+                document.getElementById("offer-count").textContent =
+                applications.filter(a => a.status === "Offer").length;
+
+            } catch (error) {
+                table.replaceChildren();
+
+                const row = table.insertRow();
+                const cell = row.insertCell();
+
+                cell.colSpan = 4;
+                cell.textContent = "Error loading applications: " + error.message;
+            }
+            }
+  
+            const applicationModal =
+                document.getElementById("application-modal");
+
+            const openModalButton =
+                document.getElementById("open-application-modal");
+
+            const closeModalButton =
+                document.getElementById("close-application-modal");
+
+            function openApplicationModal() {
+                applicationModal.classList.add("open");
+                document.body.classList.add("modal-open");
+                document.getElementById("company").focus();
+            }
+
+            function closeApplicationModal() {
+                applicationModal.classList.remove("open");
+                document.body.classList.remove("modal-open");
+            }
+
+            openModalButton.addEventListener("click", () => {
+                editingApplicationId = null;
+
+                document.getElementById("application-form").reset();
+
+                document.getElementById("modal-title").textContent =
+                    "Add Application";
+
+                document.getElementById("save-application-button").textContent =
+                    "Save Application";
+
+                document.getElementById("form-message").textContent = "";
+
+                openApplicationModal();
+            });
+
+            closeModalButton.addEventListener("click", closeApplicationModal);
+
+            applicationModal.addEventListener("click", (event) => {
+                if (event.target === applicationModal) {
+                    closeApplicationModal();
+                }
+            });
+
+            document.addEventListener("keydown", (event) => {
+                if (event.key === "Escape") {
+                    closeApplicationModal();
+                }
+            });
+            // Tracks whether the popup is adding or editing
+            let editingApplicationId = null;
+
+            // Open popup to edit an application
+            function editApplication(application) {
+            editingApplicationId = application.id;
+
+            document.getElementById("modal-title").textContent =
+                "Edit Application";
+
+            document.getElementById("save-application-button").textContent =
+                "Save Changes";
+
+            document.getElementById("company").value =
+                application.company;
+
+            document.getElementById("position").value =
+                application.position;
+
+            document.getElementById("status").value =
+                application.status;
+
+            document.getElementById("deadline").value =
+                application.deadline
+                ? String(application.deadline).slice(0, 10)
+                : "";
+
+            document.getElementById("form-message").textContent = "";
+
+            openApplicationModal();
+            }
+
+            // Delete an application
+            async function deleteApplication(application) {
+            const confirmed = confirm(
+                `Are you sure you want to delete your application to ${application.company}?`
+            );
+
+            if (!confirmed) return;
+
+            try {
+                const response = await fetch(
+                `/api/applications/${application.id}`,
+                {
+                    method: "DELETE",
+                    credentials: "same-origin"
+                }
+                );
+
+                if (!response.ok) {
+                const data = await response.json().catch(() => ({}));
+                throw new Error(data.error || "Failed to delete application");
+                }
+
+                await loadApplications();
+
+            } catch (error) {
+                alert("Error deleting application: " + error.message);
+            }
+        }
+        </script>
+  </body>
+</html>

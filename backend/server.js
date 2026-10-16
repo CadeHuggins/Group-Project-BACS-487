@@ -1,13 +1,16 @@
-
+const path = require("path");
 const express = require("express");
 const pool = require("./db");
 const session = require("express-session");
 const PgSession = require("connect-pg-simple")(session);
 const argon2 = require("argon2");
+const { OAuth2Client } = require("google-auth-library");
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
+app.use(express.static(path.join(__dirname, "public")));
 
 app.use(session({
   store: new PgSession({
@@ -119,6 +122,100 @@ app.post("/api/auth/register", async (req, res) => {
 
     res.status(500).json({
       error: "Registration failed"
+    });
+  }
+});
+
+app.post("/api/auth/google", async (req, res) => {
+  try {
+    const { credential } = req.body || {};
+
+    if (typeof credential !== "string" || !credential) {
+      return res.status(400).json({
+        error: "Google credential is required"
+      });
+    }
+
+    // Verify the Google ID token.
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID
+    });
+
+    const payload = ticket.getPayload();
+
+    if (!payload?.sub || !payload.email || !payload.email_verified) {
+      return res.status(401).json({
+        error: "Google account could not be verified"
+      });
+    }
+
+    const googleId = payload.sub;
+    const email = payload.email.toLowerCase();
+    const name = (payload.name || email).slice(0, 100);
+
+    // Find an existing Google-linked student.
+    let result = await pool.query(
+      "SELECT id, name, email FROM students WHERE google_id = $1",
+      [googleId]
+    );
+
+    let student = result.rows[0];
+
+    if (!student) {
+      // Don't automatically link existing password accounts by email.
+      const existing = await pool.query(
+        "SELECT id FROM students WHERE email = $1",
+        [email]
+      );
+
+      if (existing.rows.length > 0) {
+        return res.status(409).json({
+          error: "An account already uses this email. Account linking is required."
+        });
+      }
+
+      result = await pool.query(
+        `INSERT INTO students (name, email, google_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (email) DO NOTHING
+         RETURNING id, name, email`,
+        [name, email, googleId]
+      );
+
+      student = result.rows[0];
+
+      if (!student) {
+        return res.status(409).json({
+          error: "An account already uses this email."
+        });
+      }
+    }
+
+    // Create the existing PostgreSQL-backed session.
+    req.session.regenerate((error) => {
+      if (error) {
+        return res.status(500).json({ error: "Google login failed" });
+      }
+
+      req.session.studentId = student.id;
+
+      req.session.save((error) => {
+        if (error) {
+          return res.status(500).json({ error: "Google login failed" });
+        }
+
+        res.json({
+          message: "Google login successful",
+          student
+        });
+      });
+    });
+  } catch (error) {
+    console.error("Google authentication error:", error.message);
+
+    res.status(401).json({
+      error: "Google authentication failed"
     });
   }
 });
@@ -418,6 +515,38 @@ app.put("/api/applications/:id", requireLogin, async (req, res) => {
   }
 });
 
+app.delete("/api/applications/:id", async (req, res) => {
+  if (!req.session.studentId) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+
+  const id = req.params.id;
+
+  if (!/^\d+$/.test(id)) {
+    return res.status(400).json({ error: "Invalid application ID" });
+  }
+
+  try {
+    const result = await pool.query(
+      `DELETE FROM applications
+       WHERE id = $1 AND student_id = $2
+       RETURNING id`,
+      [id, req.session.studentId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        error: "Application not found"
+      });
+    }
+
+    res.json({ message: "Application deleted successfully" });
+
+  } catch (error) {
+    console.error("Delete application error:", error);
+    res.status(500).json({ error: "Failed to delete application" });
+  }
+});
 // Start the server
 app.listen(PORT, "127.0.0.1", () => {
   console.log(`Backend running on port ${PORT}`);
