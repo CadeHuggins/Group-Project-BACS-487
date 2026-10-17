@@ -237,10 +237,14 @@ app.post("/api/auth/login", async (req, res) => {
 
     const student = result.rows[0];
 
-    if (!student || !(await argon2.verify(student.password_hash, password))) {
+    if (
+      !student ||
+      !student.password_hash ||
+      !(await argon2.verify(student.password_hash, password))
+    ) {
       return res.status(401).json({
-        error: "Invalid email or password"
-      });
+          error: "Invalid email or password"
+     });
     }
 
     req.session.regenerate((error) => {
