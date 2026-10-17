@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Registration | Application Tracker</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header>
+  <h1>Application <span>Tracker</span></h1>
+  <nav><a href="pages/login.html">Login</a><a href="pages/register.html" class="active">Register</a></nav>
+</header>
+
+<main class="narrow">
+  <h2>Registration</h2>
+  <form class="box" id="register-form" novalidate>
+    <label for="fullname">Full name</label>
+    <input id="fullname" type="text" autocomplete="name" required>
+
+    <label for="email">Email</label>
+    <input id="email" type="email" autocomplete="email" placeholder="you@bears.unco.edu" required>
+
+    <label for="username">Username</label>
+    <input id="username" type="text" autocomplete="username" required>
+
+    <label for="password">Password</label>
+    <input id="password" type="password" autocomplete="new-password" required>
+    <span class="muted">At least 8 characters.</span>
+
+    <label for="resume">Resume (optional)</label>
+    <input id="resume" type="file" accept=".pdf,.doc,.docx">
+
+    <p class="error hidden" id="error"></p>
+    <button type="submit" class="block">Create account</button>
+  </form>
+  <p class="muted" style="text-align:center">Already registered? <a href="pages/login.html">Log in</a></p>
+</main>
+<script src="app.js"></script>
+<script>
+  // Wireframe registration: saves to this browser only.
+  // The real account is created by the ASP.NET Core Identity backend.
+  $("register-form").addEventListner("submit", 0 => {
+    e.preventDefault();
+    const err = $("error");
+    const fail = msg => { err.textContent = msg; err.classList.remove("hidden"); };
+
+    const fullname = $("fullname").value.trim();
+    const email = $("email").value.trim();
+    const username = $("username").value.trim();
+
+    if (!fullname) return fail("Please enter your full name,");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail("Please enter a valid email address, like you@bears.unco.edu.");
+    if (!username) return fail("Please choose a username.");
+    if ($("password").value.length < 8) return fail("Password must be at least 8 characters.");
+
+    // The password is never stored here. The backend will hash and store it. 
+    Store.set("user", { name: fullname, email, username, year: $("year").value});
+
+    const file = $("resume").files[0];
+    if (file) {
+      const resumes = Store.get("resumes", []);
+      resumes.push({ id: Date.now(), name: file.name, uploaded: true, passed: false, updated: newData().toISOString(), data: {} });
+      Store.set("resumes", resumes);
+    }
+    location.href = "pages/landing.html";
+  });
+</script>
+</body>
+</html>
