@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Application Tracker</title>
+    <style>
+      body { margin: 0; font-family: Arial, sans-serif; background: #f5f6f9; color: #222; }
+      header { background: #0b2545; border-bottom: 4px solid #c9a227; color: #fff; padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .5rem; }
+        header h1 { margin: 0; font-size: 1.4rem; }
+        header h1 span { color: #c9a227; }
+        nav a { color: #fff; text-decoration: none; margin-left: 1rem; padding-bottom: 3px; }
+        nav a:hover, nav a.active { color: #c9a227; border-bottom: 2px solid #c9a227; }
+        main { max-width: 900px; margin: 0 auto; padding: 1.5rem; }
+        h2 { color: #0b2545; }
+        .box {background: #fff; border: 1px solid #ddd; border-top: 3px solid #0b2545; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+        .stats { display: flex; gap: 1rem; flex-wrap: wrap; }
+        .stats .box { flex: 1; min-width: 120px; text-align: center; }
+        .stats b { display: block; font-size: 1.8rem; color: #0b2545; }
+        table { width: 100%; border-collapse: collapse; background: #fff; }
+        th { background: #0b2545; color: #fff; text-align: left; padding: .6rem; }
+        td {padding: .6rem; color: #666; }
+        label { display: block; margin-top: .75rem; font-weight: bold; color: #0b2545; }
+        input, select { width: 100%; padding: .5rem; border: 1px solid #ccc; box-sizing: border-box; }
+        button {background: #c9a227; color: #0b2545; border: 0; padding: .6rem 1.2rem; font-weight: bold; cursor: pointer; margin-top: 1rem; }
+        section {display: none; }
+        section.active { display: block; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Application <span>Tracker</span></h1>
+      <nav>
+        <a href="#" data-page="dashboard" class="active">Dashboard</a>
+        <a href="#" data-page="applications">Applications</a>
+        <a href="#" data-page="add">Add Application</a>
+      </nav>
+    </header>
+    <main>
+
+      <section id="dashboard" class="active">
+        <h2>Dashboard</h2>
+        <div class="stats">
+          <div class="box"><b>0</b>Total</div>
+          <div class="box"><b>0</b>Applied</div>
+          <div class="box"><b>0</b>Interiews</div>
+          <div class="box"><b>0</b>Offers</div>
+        </div>
+        <div class="box">
+          <p>You haven't added any applications yet.</p>
+          <a href="#" data-page="add">Add your first application</a>          
+        </div>
+      </section>
+
+      <section id="applications">
+        <h2>Applications</h2>
+        <table>
+          <tr><th>Company</th><th>Postion</th><th>Status</th><th>Deadline</th></tr>
+          <tr><td colspan="4">No applications yet.</td></tr>
+        </table>
+      </section>
+
+      <section id="add">
+        <h2>Add Application</h2>
+        <div class="box">
+          <label>Company</label><input type="text">
+          <label>Position</label><input type="text">
+          <label>Status</label>
+          <select><option>Saved</option><option>Applied</option><option>Interview</option><option>Offer</option><Option>Rejected</Option></select>
+          <label>Dealine</label><input type="date">
+          <button>Save</button>
+        </div>
+      </section>
+    </main>
+    <script>
+      //Simple page switching only. No data is saved yet.
+      documment.querySelectorAll("[data-page]").forEach(link => {
+        link.addEventListener("click", e => {
+          e.preventDefault();
+          document.querySelectorAll("section").forEach(s => s.classList.toggle("active", s.id === link.dataset.page));
+          document.querySelectorAll("nav a").forEach(a => a.classList.toggle("active", a.dataset.page === link.dataset.page));
+        });
+      })
+    </script>
+  </body>
+</html>
