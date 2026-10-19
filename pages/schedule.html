@@ -1,1 +1,130 @@
 <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scheduling | Application Tracker</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+ 
+<header id="header"></header>
+ 
+<main>
+  <h2>Scheduling</h2>
+ 
+  <!-- Function: Calendar -->
+  <div class="box">
+    <div class="cal-head">
+      <h3 id="month-label">Calendar</h3>
+      <div>
+        <button class="small alt" id="prev" aria-label="Previous month">&lsaquo; Prev</button>
+        <button class="small alt" id="today">Today</button>
+        <button class="small alt" id="next" aria-label="Next month">Next &rsaquo;</button>
+      </div>
+    </div>
+    <div class="cal-grid" id="cal"></div>
+  </div>
+ 
+  <div class="two">
+    <!-- Function: Add event -->
+    <form class="box" id="event-form">
+      <h3>Add event</h3>
+      <label for="title">Title</label><input id="title" type="text" required placeholder="e.g. Interview with Acme">
+      <label for="type">Type</label>
+      <select id="type"><option>Interview</option><option>Deadline</option><option>Follow-up</option></select>
+      <div class="row">
+        <div><label for="date">Date</label><input id="date" type="date" required></div>
+        <div><label for="time">Time</label><input id="time" type="time"></div>
+      </div>
+      <button type="submit">Add event</button>
+    </form>
+ 
+    <!-- Function: Alerts -->
+    <div class="box">
+      <h3>Alerts</h3>
+      <p class="muted" id="alert-email" style="margin-top:0"></p>
+      <label class="check"><input type="checkbox" data-alert="day"> Remind me 1 day before</label>
+      <label class="check"><input type="checkbox" data-alert="hour"> Remind me 1 hour before</label>
+      <label class="check"><input type="checkbox" data-alert="follow"> Follow-up reminders</label>
+      <h3 style="margin-top:1.25rem">Upcoming events</h3>
+      <ul class="list" id="upcoming"></ul>
+    </div>
+  </div>
+</main>
+ 
+<script src="app.js"></script>
+<script>
+  renderHeader("schedule");
+  const acct = Store.get("user", {});
+  $("alert-email").textContent = acct.email ? "Reminders are sent to " + acct.email : "Add your email on the Account page to receive reminders.";
+ 
+  let events = Store.get("events", []);
+  let alerts = Store.get("alerts", { day: true, hour: false, follow: true });
+  let view = new Date(); view.setDate(1);
+  let selected = ymd(new Date());
+  $("date").value = selected;
+ 
+  /* ----- Calendar ----- */
+  function renderCal() {
+    const y = view.getFullYear(), m = view.getMonth();
+    $("month-label").textContent = view.toLocaleString("default", { month: "long", year: "numeric" });
+    const todayStr = ymd(new Date());
+    let html = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => `<div class="dow">${d}</div>`).join("");
+    html += '<div class="day blank"></div>'.repeat(new Date(y, m, 1).getDay());
+    for (let d = 1; d <= new Date(y, m + 1, 0).getDate(); d++) {
+      const key = ymd(new Date(y, m, d));
+      const evs = events.filter(e => e.date === key);
+      html += `<button type="button" class="day ${key === todayStr ? "today" : ""} ${key === selected ? "selected" : ""}" data-date="${key}">
+        <span class="n">${d}</span>
+        ${evs.slice(0, 2).map(e => `<span class="ev ${e.type}">${esc(e.title)}</span>`).join("")}
+        ${evs.length > 2 ? `<span class="muted" style="font-size:.7rem">+${evs.length - 2} more</span>` : ""}
+      </button>`;
+    }
+    $("cal").innerHTML = html;
+  }
+  $("cal").addEventListener("click", e => {
+    const b = e.target.closest("[data-date]"); if (!b) return;
+    selected = b.dataset.date; $("date").value = selected; renderCal();
+  });
+  $("prev").onclick = () => { view.setMonth(view.getMonth() - 1); renderCal(); };
+  $("next").onclick = () => { view.setMonth(view.getMonth() + 1); renderCal(); };
+  $("today").onclick = () => { view = new Date(); view.setDate(1); selected = ymd(new Date()); $("date").value = selected; renderCal(); };
+ 
+  /* ----- Add event ----- */
+  $("event-form").addEventListener("submit", e => {
+    e.preventDefault();
+    events.push({ id: Date.now(), title: $("title").value.trim(), type: $("type").value, date: $("date").value, time: $("time").value });
+    Store.set("events", events);
+    $("title").value = ""; $("time").value = "";
+    renderAll();
+    toast("Event added");
+  });
+ 
+  /* ----- Upcoming list ----- */
+  function renderUpcoming() {
+    const today = ymd(new Date());
+    const list = events.filter(e => e.date >= today).sort((a, b) => (a.date + (a.time || "")).localeCompare(b.date + (b.time || "")));
+    $("upcoming").innerHTML = list.length ? list.slice(0, 8).map(e => `
+      <li>
+        <div><b>${esc(e.title)}</b><div class="meta">${esc(e.date)}${e.time ? " &middot; " + esc(e.time) : ""} &middot; ${esc(e.type)}</div></div>
+        <button class="small danger" data-del="${e.id}" aria-label="Delete ${esc(e.title)}">&times;</button>
+      </li>`).join("") : `<li class="none">No upcoming events.</li>`;
+  }
+  $("upcoming").addEventListener("click", e => {
+    const b = e.target.closest("[data-del]"); if (!b) return;
+    events = events.filter(x => x.id !== Number(b.dataset.del));
+    Store.set("events", events); renderAll();
+  });
+ 
+  /* ----- Alerts ----- */
+  document.querySelectorAll("[data-alert]").forEach(box => {
+    box.checked = alerts[box.dataset.alert];
+    box.addEventListener("change", () => { alerts[box.dataset.alert] = box.checked; Store.set("alerts", alerts); toast("Alert preference saved"); });
+  });
+ 
+  function renderAll() { renderCal(); renderUpcoming(); }
+  renderAll();
+</script>
+</body>
+</html>
