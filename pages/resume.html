@@ -1,1 +1,263 @@
 <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resume Editor | Application Tracker</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header id="header"></header>
+  
+<main>
+  <h2>Resume Editor</h2>
+  <div class="box">
+    <h3>Upload zone</h3>
+    <div class="dropzone" id="drop" tabindex="0" role="button" aria-label="Upload a resume">
+      <p style="margin:0"><b>Click to choose a file</b> or drag it here.</p>
+      <span class="muted">PDF, DOC or DOCX</span>
+      <input id="file" typw="file" accept=".pdf,.doc,.docx" class="hidden">
+    </div>
+  </div>
+
+  <div class="two">
+    <form class="box" id="editor">
+      <h3>Editor</h3>
+      <label for="r-name">Resume name</label><input id="r-name" type="text" placeholder="e.g. Marketing Internship v1" required>
+      <div class="row">
+        <div><label for="r-full">Full name</label><input id="r-full" type="text"></div>
+        <div><label for="r-email">Email</label><input id="r-email" type="email"></div>
+      </div>
+      <label for="r-summary">Summary</label><textarea id="r-summary" rows="3"></textarea>
+      <label for="r-edu">Education</label><textarea id="r-edu" rows="3"></textarea>
+      <label for="r-exp">Experience</label><textarea id="r-exp" rows="4"></textarea>
+      <label for="r-skills">Skills</label><textarea id="r-skills" rows="2"></textarea>
+      <button type="submit">Save</button>
+      <button type="button" class="alt" id="new-btn">New resume</button>
+    </form>
+ 
+    <!-- Live preview -->
+    <div class="box">
+      <h3>Preview</h3>
+      <div class="preview" id="preview"></div>
+    </div>
+  </div>
+ 
+  <!-- AI Resume Helper -->
+  <div class="box" id="ai-box">
+    <h3>AI Resume Helper <span class="badge">Beta</span></h3>
+    <p class="muted" style="margin-top:0">Pick a section and get tips to make it stronger. Your text is not changed until you choose to use a suggestion.</p>
+    <div class="row">
+      <div>
+        <label for="ai-section">Section to improve</label>
+        <select id="ai-section">
+          <option value="summary">Summary</option>
+          <option value="edu">Education</option>
+          <option value="exp">Experience</option>
+          <option value="skills">Skills</option>
+        </select>
+      </div>
+      <div>
+        <label for="ai-job">Target job (optional)</label>
+        <input id="ai-job" type="text" placeholder="e.g. Marketing Intern at Acme">
+      </div>
+    </div>
+    <button type="button" id="ai-run">Improve with AI</button>
+    <p class="muted" id="ai-status" role="status"></p>
+ 
+    <div id="ai-out" class="hidden">
+      <h3 style="margin-top:1rem">Suggestions</h3>
+      <ul class="list" id="ai-tips"></ul>
+      <div id="ai-rewrite-wrap" class="hidden">
+        <label for="ai-rewrite">Suggested rewrite</label>
+        <textarea id="ai-rewrite" rows="5" readonly></textarea>
+        <button type="button" id="ai-apply">Use this rewrite</button>
+        <button type="button" class="alt" id="ai-dismiss">Dismiss</button>
+      </div>
+    </div>
+    <p class="muted" style="margin-bottom:0">AI can make mistakes. Check every suggestion and only keep what is true about you.</p>
+  </div>
+ 
+  <div class="two">
+    <div class="box">
+      <h3>Saved resumes</h3>
+      <ul class="list" id="saved"></ul>
+    </div>
+ 
+    <!-- Function: Passed resumes -->
+    <div class="box">
+      <h3>Passed resumes</h3>
+      <p class="muted" style="margin-top:0">Resumes that led to an interview or offer.</p>
+      <ul class="list" id="passed"></ul>
+    </div>
+  </div>
+</main>
+ 
+<script src="app.js"></script>
+<script>
+  renderHeader("resume");
+ 
+  let resumes = Store.get("resumes", []);
+  let currentId = null;
+  const F = { name: "r-name", full: "r-full", email: "r-email", summary: "r-summary", edu: "r-edu", exp: "r-exp", skills: "r-skills" };
+ 
+  /* ----- Upload zone ----- */
+  const drop = $("drop"), file = $("file");
+  drop.addEventListener("click", () => file.click());
+  drop.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); file.click(); } });
+  ["dragover", "dragenter"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("drag"); }));
+  ["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("drag"); }));
+  drop.addEventListener("drop", e => addUpload(e.dataTransfer.files[0]));
+  file.addEventListener("change", () => addUpload(file.files[0]));
+  function addUpload(f) {
+    if (!f) return;
+    // Wireframe: we only remember the file name. The backend will store the file itself.
+    resumes.unshift({ id: Date.now(), name: f.name, uploaded: true, passed: false, updated: new Date().toISOString(), data: {} });
+    persist();
+    toast("Uploaded " + f.name);
+  }
+ 
+  /* ----- Editor ----- */
+  function readForm() { const d = {}; for (const k in F) d[k] = $(F[k]).value; return d; }
+  const acct = Store.get("user", {});
+  const ACCOUNT_DEFAULT = { full: acct.name || "", email: acct.email || "" };   // from registration
+  function fillForm(d) { for (const k in F) $(F[k]).value = (d && d[k]) || ACCOUNT_DEFAULT[k] || ""; renderPreview(); }
+ 
+  $("editor").addEventListener("input", renderPreview);
+  $("editor").addEventListener("submit", e => {
+    e.preventDefault();
+    const d = readForm();
+    const existing = resumes.find(r => r.id === currentId);
+    if (existing) { existing.name = d.name; existing.data = d; existing.uploaded = false; existing.updated = new Date().toISOString(); }
+    else { currentId = Date.now(); resumes.unshift({ id: currentId, name: d.name, data: d, passed: false, uploaded: false, updated: new Date().toISOString() }); }
+    persist();
+    toast("Resume saved");
+  });
+  $("new-btn").addEventListener("click", () => { currentId = null; fillForm({}); });
+ 
+  function renderPreview() {
+    const d = readForm();
+    const sec = (title, text) => `<h5>${title}</h5>` + (text.trim() ? `<p>${esc(text)}</p>` : `<p class="ph">Your ${title.toLowerCase()} will appear here</p>`);
+    $("preview").innerHTML = `
+      <h4>${esc(d.full) || '<span class="ph">Your name</span>'}</h4>
+      <div class="contact">${esc(d.email) || '<span class="ph">your.email@school.edu</span>'}</div>
+      ${sec("Summary", d.summary)}${sec("Education", d.edu)}${sec("Experience", d.exp)}${sec("Skills", d.skills)}`;
+  }
+ 
+  /* ----- Lists ----- */
+  function persist() { Store.set("resumes", resumes); renderLists(); }
+  function renderLists() {
+    $("saved").innerHTML = resumes.length ? resumes.map(r => `
+      <li>
+        <div><b>${esc(r.name)}</b><div class="meta">${r.uploaded ? "Uploaded file" : "Edited"} &middot; ${new Date(r.updated).toLocaleDateString()}</div></div>
+        <div>
+          ${r.uploaded ? "" : `<button class="small alt" data-edit="${r.id}">Edit</button>`}
+          <button class="small ${r.passed ? "" : "alt"}" data-pass="${r.id}">${r.passed ? "Passed" : "Mark passed"}</button>
+          <button class="small danger" data-del="${r.id}" aria-label="Delete ${esc(r.name)}">&times;</button>
+        </div>
+      </li>`).join("") : `<li class="none">No resumes yet. Upload one or save from the editor.</li>`;
+ 
+    const passed = resumes.filter(r => r.passed);
+    $("passed").innerHTML = passed.length
+      ? passed.map(r => `<li><b>${esc(r.name)}</b><span class="badge">Passed</span></li>`).join("")
+      : `<li class="none">None yet.</li>`;
+  }
+ 
+  $("saved").addEventListener("click", e => {
+    const t = e.target.closest("button"); if (!t) return;
+    if (t.dataset.edit) { currentId = Number(t.dataset.edit); fillForm(resumes.find(r => r.id === currentId).data); window.scrollTo({ top: 0, behavior: "smooth" }); }
+    if (t.dataset.pass) { const r = resumes.find(x => x.id === Number(t.dataset.pass)); r.passed = !r.passed; persist(); }
+    if (t.dataset.del && confirm("Delete this resume?")) { resumes = resumes.filter(r => r.id !== Number(t.dataset.del)); if (currentId === Number(t.dataset.del)) { currentId = null; fillForm({}); } persist(); }
+  });
+ 
+  /* ==========================================================
+     AI Resume Helper
+     1. askAI() calls the team's backend endpoint (ASP.NET, see
+        backend-example/ResumeHelperController.cs). The API key stays
+        on the server and is never placed in this file.
+     2. If the backend is not running yet, localTips() gives free,
+        built-in checklist tips so the page still works.
+     Expected backend reply: { "tips": ["..."], "suggestion": "..." }
+     ========================================================== */
+  const AI_ENDPOINT = "/api/resume-helper";
+  const SECTION_FIELD = { summary: "r-summary", edu: "r-edu", exp: "r-exp", skills: "r-skills" };
+  let aiSection = null;
+ 
+  async function askAI(payload) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 25000);
+    try {
+      const res = await fetch(AI_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), signal: ctrl.signal });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return await res.json();
+    } finally { clearTimeout(timer); }
+  }
+ 
+  function localTips({ section, text, targetJob }) {
+    const tips = [];
+    const words = text.split(/\s+/).filter(Boolean);
+    const lines = text.split(/\n+/).map(l => l.replace(/^[\-\u2022*\s]+/, "").trim()).filter(Boolean);
+ 
+    if (/\b(I|my|me)\b/.test(text)) tips.push("Remove first-person words like I and my. Start each point with a strong action verb instead.");
+    if (section === "exp" || section === "summary") {
+      if (/\b(responsible for|helped|worked on|duties included)\b/i.test(text)) tips.push("Replace weak phrases like \"responsible for\" or \"helped\" with action verbs such as led, built, organized, increased or designed.");
+      if (!/\d/.test(text)) tips.push("Add numbers where you can: how many people, how much time saved, or what percent improved.");
+    }
+    if (section === "summary") {
+      if (words.length < 15) tips.push("Your summary is short. Aim for 2 to 3 sentences covering who you are, your strongest skills and what you want.");
+      if (words.length > 60) tips.push("Your summary is long. Trim it to about 3 sentences so it is read in a few seconds.");
+    }
+    if (section === "exp" && lines.length < 3) tips.push("List 3 or more bullet points per role, one achievement per line.");
+    if (section === "edu") {
+      if (!/\b(19|20)\d{2}\b/.test(text)) tips.push("Add your expected graduation date, like May 2028.");
+      if (!/gpa|coursework|honors|dean/i.test(text)) tips.push("Consider adding relevant coursework, honors, or your GPA if it is 3.0 or higher.");
+    }
+    if (section === "skills") {
+      const items = text.split(/[,\n;]+/).filter(s => s.trim());
+      if (items.length < 5) tips.push("List at least 5 skills. Mix technical skills (Excel, SQL) with workplace skills (teamwork, communication).");
+      if (items.length > 15) tips.push("Keep the list to your top 10 to 12 skills that match the job.");
+    }
+    if (targetJob) {
+      const have = text.toLowerCase();
+      const missing = [...new Set(targetJob.toLowerCase().match(/[a-z]{4,}/g) || [])].filter(w => !have.includes(w) && !["intern","internship","position","company","with","from","that","this"].includes(w)).slice(0, 4);
+      if (missing.length) tips.push("The job mentions: " + missing.join(", ") + ". If these are true for you, work them into this section.");
+    }
+    if (!tips.length) tips.push("This section looks solid. Re-read it once for typos and keep every line to a single idea.");
+    return { tips, suggestion: null };
+  }
+ 
+  $("ai-run").addEventListener("click", async () => {
+    const section = $("ai-section").value;
+    const text = $(SECTION_FIELD[section]).value.trim();
+    const status = $("ai-status");
+    if (!text) { status.textContent = "Write something in that section first, then ask for help."; return; }
+ 
+    const payload = { section, text, targetJob: $("ai-job").value.trim() };
+    const btn = $("ai-run");
+    btn.disabled = true; status.textContent = "Thinking...";
+    let result, mode = "ai";
+    try { result = await askAI(payload); }
+    catch (err) { result = localTips(payload); mode = "local"; }
+    btn.disabled = false;
+ 
+    status.textContent = mode === "ai" ? "" : "The AI service is not connected yet, so these are built-in tips.";
+    $("ai-tips").innerHTML = (result.tips || []).map(t => `<li>${esc(t)}</li>`).join("");
+    aiSection = section;
+    $("ai-rewrite-wrap").classList.toggle("hidden", !result.suggestion);
+    $("ai-rewrite").value = result.suggestion || "";
+    $("ai-out").classList.remove("hidden");
+  });
+ 
+  $("ai-apply").addEventListener("click", () => {
+    $(SECTION_FIELD[aiSection]).value = $("ai-rewrite").value;
+    renderPreview();
+    $("ai-out").classList.add("hidden");
+    toast("Rewrite applied. Remember to click Save.");
+  });
+  $("ai-dismiss").addEventListener("click", () => $("ai-out").classList.add("hidden"));
+ 
+  renderLists();
+  fillForm({});
+</script>
+</body>
+</html>
