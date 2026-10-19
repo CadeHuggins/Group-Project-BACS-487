@@ -1,1 +1,116 @@
 <!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Landing Page | Application Tracker</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header id="header"></header>
+<main>
+  <h2 id="welcome">Landing Page</h2>
+  <p class="muted" id="who" style="margin-top: -.5rem"></p>
+
+  <div class="stats">
+    <div class="box"><b id="s-total">0</b>Total</div>
+    <div class="box"><b id="s-total">0</b>Total</div>
+    <div class="box"><b id="s-applied">0</b>Applied</div>
+    <div class="box"><b id="s-interview">0</b>Interviews</div>
+    <div class="box"><b id="s-offer">0</b>Offers</div>
+  </div>
+ 
+  <!-- Function: Jobs applied to -->
+  <div class="box">
+    <h3>Jobs applied to</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Company</th><th>Position</th><th>Status</th><th>Date</th><th>Link</th><th></th></tr></thead>
+        <tbody id="jobs"></tbody>
+      </table>
+    </div>
+  </div>
+ 
+  <!-- Function: Link job -->
+  <div class="box">
+    <h3>Link job</h3>
+    <form id="link-form">
+      <div class="row">
+        <div><label for="company">Company</label><input id="company" type="text" required></div>
+        <div><label for="position">Position</label><input id="position" type="text" required></div>
+      </div>
+      <label for="link">Job link</label>
+      <input id="link" type="url" placeholder="https://">
+      <div class="row">
+        <div><label for="status">Status</label>
+          <select id="status"><option>Applied</option><option>Interview</option><option>Offer</option><option>Rejected</option></select></div>
+        <div><label for="date">Date applied</label><input id="date" type="date"></div>
+      </div>
+      <button type="submit">Link job</button>
+    </form>
+  </div>
+</main>
+ 
+<script src="app.js"></script>
+<script>
+  renderHeader("landing");
+  const user = Store.get("user", { name: "Student" });
+  $("welcome").textContent = "Welcome, " + user.name;
+  $("who").textContent = user.email ? "Signed in as " + user.email : "";
+ 
+  let jobs = Store.get("jobs", []);
+  $("date").value = ymd(new Date());
+ 
+  function render() {
+    const count = s => jobs.filter(j => j.status === s).length;
+    $("s-total").textContent = jobs.length;
+    $("s-applied").textContent = count("Applied");
+    $("s-interview").textContent = count("Interview");
+    $("s-offer").textContent = count("Offer");
+ 
+    $("jobs").innerHTML = jobs.length ? jobs.map(j => `
+      <tr>
+        <td><b>${esc(j.company)}</b></td>
+        <td>${esc(j.position)}</td>
+        <td><select class="status s-${j.status}" data-id="${j.id}" aria-label="Status for ${esc(j.company)}">
+          ${STATUSES.map(s => `<option ${s === j.status ? "selected" : ""}>${s}</option>`).join("")}</select></td>
+        <td>${esc(j.date || "-")}</td>
+        <td>${j.link ? `<a href="${esc(j.link)}" target="_blank" rel="noopener">Open</a>` : "-"}</td>
+        <td><button class="small danger" data-del="${j.id}">Remove</button></td>
+      </tr>`).join("")
+      : `<tr><td colspan="6" class="empty">You haven't added any jobs yet. Use the Link job form below.</td></tr>`;
+  }
+ 
+  $("link-form").addEventListener("submit", e => {
+    e.preventDefault();
+    jobs.unshift({ id: Date.now(), company: $("company").value.trim(), position: $("position").value.trim(),
+      link: $("link").value.trim(), status: $("status").value, date: $("date").value });
+    Store.set("jobs", jobs);
+    e.target.reset();
+    $("date").value = ymd(new Date());
+    render();
+    toast("Job linked");
+  });
+ 
+  $("jobs").addEventListener("change", e => {
+    const sel = e.target.closest(".status"); if (!sel) return;
+    jobs.find(j => j.id === Number(sel.dataset.id)).status = sel.value;
+    Store.set("jobs", jobs);
+    render();
+  });
+ 
+  $("jobs").addEventListener("click", e => {
+    const b = e.target.closest("[data-del]");
+    if (!b || !confirm("Remove this job?")) return;
+    jobs = jobs.filter(j => j.id !== Number(b.dataset.del));
+    Store.set("jobs", jobs);
+    render();
+  });
+ 
+  render();
+</script>
+</body>
+</html>
+</main>
+</body>
