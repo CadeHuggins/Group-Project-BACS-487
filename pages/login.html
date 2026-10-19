@@ -4,13 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Login | Application Tracker</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
  
 <header>
   <h1>Application <span>Tracker</span></h1>
-  <nav><a href="login.html" class="active">Login</a><a href="register.html">Register</a></nav>
+  <nav><a href="pages/login.html" class="active">Login</a><a href="pages/register.html">Register</a></nav>
 </header>
  
 <main class="narrow">
@@ -46,7 +46,7 @@
       // Different person than the one saved in this browser: start a fresh profile
       Store.set("user", { name: entered.split("@")[0], username: entered.includes("@") ? "" : entered, email: entered.includes("@") ? entered : "" });
     }
-    location.href = "landing.html";
+    location.href = "pages/landing.html";
   });
 </script>
 </body>
