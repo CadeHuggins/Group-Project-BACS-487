@@ -4,35 +4,35 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Login | Application Tracker</title>
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-
+ 
 <header>
   <h1>Application <span>Tracker</span></h1>
-  <nav><a href="pages/login.html" class="active">Login</a><a href="pages/register.html">Register</a></nav>
+  <nav><a href="login.html" class="active">Login</a><a href="register.html">Register</a></nav>
 </header>
-
+ 
 <main class="narrow">
   <h2>Login</h2>
   <form class="box" id="login-form" novalidate>
-    <!-- Function: Username -->
-    <label for="username">Username</label>
+    <!-- Function: Username or email -->
+    <label for="username">Username or email</label>
     <input id="username" type="text" autocomplete="username" required>
-
+ 
     <!-- Function: Password -->
     <label for="password">Password</label>
     <input id="password" type="password" autocomplete="current-password" required>
-
-    <p class="error hidden" id="error">Please enter your username and password.</p>
+ 
+    <p class="error hidden" id="error">Please enter your username or email and your password.</p>
     <button type="submit" class="block">Log in</button>
   </form>
   <p class="muted" style="text-align:center">New here? <a href="register.html">Create an account</a></p>
 </main>
-
+ 
 <script src="app.js"></script>
 <script>
-  // Wireframe login: accepts any username/password. The real check
+  // Wireframe login: accepts any username/email and password. The real check
   // belongs to the ASP.NET Core Identity backend.
   $("login-form").addEventListener("submit", e => {
     e.preventDefault();
