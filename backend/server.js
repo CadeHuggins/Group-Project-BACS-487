@@ -11,6 +11,9 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
+app.use("/frontend", express.static(
+  path.join(__dirname, "../frontend")
+));
 
 app.use(session({
   store: new PgSession({
