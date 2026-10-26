@@ -319,48 +319,42 @@
             }
 
             async function checkSession() {
-            try {
-                const res = await fetch("/api/auth/me", {
-                credentials: "same-origin"
-                });
+                try {
+                    const res = await fetch("/api/auth/me", {
+                    credentials: "same-origin"
+                    });
 
-                if (!res.ok) {
-                showLoggedOut();
-                return;
+                    if (!res.ok) {
+                    window.location.replace("/frontend/pages/login.html");
+                    return;
+                    }
+
+                    const data = await res.json();
+                    showLoggedIn(data.student || data);
+
+                } catch (error) {
+                    window.location.replace("/frontend/pages/login.html");
                 }
-
-                const data = await res.json();
-
-                showLoggedIn(data.student || data);
-
-            } catch (error) {
-                showLoggedOut();
-            }
             }
 
             document.getElementById("logout-button").addEventListener(
             "click",
-            async () => {
-                try {
-                const res = await fetch("/api/auth/logout", {
-                    method: "POST",
-                    credentials: "same-origin"
-                });
+                async function logout() {
+                    try {
+                        const response = await fetch("/api/auth/logout", {
+                        method: "POST",
+                        credentials: "same-origin"
+                        });
 
-                if (!res.ok) {
-                    throw new Error("Logout failed");
+                        if (!response.ok) {
+                        throw new Error("Logout failed");
+                        }
+
+                        window.location.replace("/frontend/pages/login.html");
+                    } catch (error) {
+                        alert(error.message);
+                    }
                 }
-
-                if (window.google?.accounts?.id) {
-                    google.accounts.id.disableAutoSelect();
-                }
-
-                showLoggedOut();
-
-                } catch (error) {
-                alert(error.message);
-                }
-            }
             );
 
             window.addEventListener("load", () => {

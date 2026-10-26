@@ -4,70 +4,32 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Registration | Application Tracker</title>
+  <title>Complete Registration | Application Tracker</title>
   <link rel="stylesheet" href="../css/style.css">
 </head>
 <body>
 
 <header>
   <h1>Application <span>Tracker</span></h1>
-  <nav>
-    <a href="login.html">Login</a>
-    <a href="register.html" class="active">Register</a>
-  </nav>
 </header>
 
 <main class="narrow">
-  <h2>Create an Account</h2>
+  <h2>Complete Your Profile</h2>
+  <p>You're signed in with Google. Finish setting up your account.</p>
 
-  <form class="box" id="register-form" novalidate>
-
+  <form class="box" id="register-form">
     <label for="fullname">Full name</label>
-    <input
-      id="fullname"
-      type="text"
-      autocomplete="name"
-      required
-    >
+    <input id="fullname" type="text" autocomplete="name" required>
 
-    <label for="email">Email</label>
-    <input
-      id="email"
-      type="email"
-      autocomplete="email"
-      placeholder="you@bears.unco.edu"
-      required
-    >
-
-    <label for="password">Password</label>
-    <input
-      id="password"
-      type="password"
-      autocomplete="new-password"
-      required
-    >
-    <span class="muted">At least 8 characters.</span>
-
-    <label for="confirm-password">Confirm password</label>
-    <input
-      id="confirm-password"
-      type="password"
-      autocomplete="new-password"
-      required
-    >
+    <label for="email">Google email</label>
+    <input id="email" type="email" readonly>
 
     <p class="error hidden" id="error" role="alert"></p>
 
     <button type="submit" class="block" id="register-button">
-      Create account
+      Complete Registration
     </button>
-
   </form>
-
-  <p class="muted" style="text-align:center">
-    Already registered?
-    <a href="login.html">Log in</a>
-  </p>
 </main>
 
 <script>
@@ -80,68 +42,72 @@
     errorElement.classList.remove("hidden");
   }
 
+  async function loadProfile() {
+    try {
+      const response = await fetch("/api/auth/me", {
+        credentials: "same-origin"
+      });
+
+      if (!response.ok) {
+        window.location.replace("/frontend/pages/login.html");
+        return;
+      }
+
+      const data = await response.json();
+      const student = data.student || data;
+
+      if (student.registration_completed === true ||
+          student.registrationCompleted === true) {
+        window.location.replace("/");
+        return;
+      }
+
+      document.getElementById("fullname").value = student.name || "";
+      document.getElementById("email").value = student.email || "";
+    } catch (error) {
+      showError("Could not load your profile.");
+    }
+  }
+
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     errorElement.classList.add("hidden");
 
     const name = document.getElementById("fullname").value.trim();
-    const email = document.getElementById("email").value.trim();
-    const password = document.getElementById("password").value;
-    const confirmPassword =
-      document.getElementById("confirm-password").value;
 
     if (!name) {
       return showError("Please enter your full name.");
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return showError("Please enter a valid email address.");
-    }
-
-    if (password.length < 8) {
-      return showError("Password must be at least 8 characters.");
-    }
-
-    if (password !== confirmPassword) {
-      return showError("Passwords do not match.");
-    }
-
     registerButton.disabled = true;
-    registerButton.textContent = "Creating account...";
+    registerButton.textContent = "Saving...";
 
     try {
-      const response = await fetch("/api/auth/register", {
+      const response = await fetch("/api/auth/complete-registration", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         credentials: "same-origin",
-        body: JSON.stringify({
-          name,
-          email,
-          password
-        })
+        body: JSON.stringify({ name })
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          data.error || data.message || "Registration failed."
-        );
+        throw new Error(data.error || "Registration failed.");
       }
 
-      alert("Account created successfully! Please log in.");
-
-      window.location.href = "/frontend/pages/login.html";
-
+      window.location.replace("/");
     } catch (error) {
       showError(error.message);
     } finally {
       registerButton.disabled = false;
-      registerButton.textContent = "Create account";
+      registerButton.textContent = "Complete Registration";
     }
   });
+
+  loadProfile();
 </script>
 
 </body>

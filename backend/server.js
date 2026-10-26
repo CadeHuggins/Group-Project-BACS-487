@@ -129,6 +129,7 @@ app.post("/api/auth/register", async (req, res) => {
   }
 });
 
+
 app.post("/api/auth/google", async (req, res) => {
   try {
     const { credential } = req.body || {};
@@ -139,7 +140,6 @@ app.post("/api/auth/google", async (req, res) => {
       });
     }
 
-    // Verify the Google ID token.
     const ticket = await googleClient.verifyIdToken({
       idToken: credential,
       audience: process.env.GOOGLE_CLIENT_ID
@@ -157,16 +157,16 @@ app.post("/api/auth/google", async (req, res) => {
     const email = payload.email.toLowerCase();
     const name = (payload.name || email).slice(0, 100);
 
-    // Find an existing Google-linked student.
     let result = await pool.query(
-      "SELECT id, name, email FROM students WHERE google_id = $1",
+      `SELECT id, name, email, registration_completed
+       FROM students
+       WHERE google_id = $1`,
       [googleId]
     );
 
     let student = result.rows[0];
 
     if (!student) {
-      // Don't automatically link existing password accounts by email.
       const existing = await pool.query(
         "SELECT id FROM students WHERE email = $1",
         [email]
@@ -179,10 +179,10 @@ app.post("/api/auth/google", async (req, res) => {
       }
 
       result = await pool.query(
-        `INSERT INTO students (name, email, google_id)
-         VALUES ($1, $2, $3)
+        `INSERT INTO students (name, email, google_id, registration_completed)
+         VALUES ($1, $2, $3, FALSE)
          ON CONFLICT (email) DO NOTHING
-         RETURNING id, name, email`,
+         RETURNING id, name, email, registration_completed`,
         [name, email, googleId]
       );
 
@@ -195,25 +195,30 @@ app.post("/api/auth/google", async (req, res) => {
       }
     }
 
-    // Create the existing PostgreSQL-backed session.
     req.session.regenerate((error) => {
       if (error) {
-        return res.status(500).json({ error: "Google login failed" });
+        return res.status(500).json({
+          error: "Google login failed"
+        });
       }
 
       req.session.studentId = student.id;
 
       req.session.save((error) => {
         if (error) {
-          return res.status(500).json({ error: "Google login failed" });
+          return res.status(500).json({
+            error: "Google login failed"
+          });
         }
 
         res.json({
           message: "Google login successful",
-          student
+          student,
+          registrationCompleted: student.registration_completed
         });
       });
     });
+
   } catch (error) {
     console.error("Google authentication error:", error.message);
 
@@ -222,6 +227,7 @@ app.post("/api/auth/google", async (req, res) => {
     });
   }
 });
+
 
 app.post("/api/auth/login", async (req, res) => {
   try {
@@ -554,6 +560,51 @@ app.delete("/api/applications/:id", async (req, res) => {
     res.status(500).json({ error: "Failed to delete application" });
   }
 });
+
+app.post("/api/auth/complete-registration", async (req, res) => {
+  try {
+    const studentId = req.session.studentId;
+
+    if (!studentId) {
+      return res.status(401).json({
+        error: "You must sign in with Google first."
+      });
+    }
+
+    const name = req.body.name?.trim();
+
+    if (!name || name.length > 150) {
+      return res.status(400).json({
+        error: "Please enter a valid full name."
+      });
+    }
+
+    const result = await pool.query(
+      `UPDATE students
+       SET name = $1, registration_completed = TRUE
+       WHERE id = $2 AND google_id IS NOT NULL
+       RETURNING id, name, email, registration_completed`,
+      [name, studentId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(403).json({
+        error: "Google account not found."
+      });
+    }
+
+    res.json({
+      message: "Registration completed successfully!",
+      student: result.rows[0]
+    });
+  } catch (error) {
+    console.error("Registration completion error:", error);
+    res.status(500).json({
+      error: "Failed to complete registration."
+    });
+  }
+});
+
 // Start the server
 app.listen(PORT, "127.0.0.1", () => {
   console.log(`Backend running on port ${PORT}`);

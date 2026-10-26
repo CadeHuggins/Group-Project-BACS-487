@@ -4,36 +4,40 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Login | Application Tracker</title>
-<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="../css/style.css">
 </head>
 <body>
 
 <header>
   <h1>Application <span>Tracker</span></h1>
-  <nav><a href="pages/login.html" class="active">Login</a><a href="pages/register.html">Register</a></nav>
+  <nav>
+    <a href="login.html" class="active">Login</a>
+    <a href="register.html">Register</a>
+  </nav>
 </header>
 
 <main class="narrow">
   <h2>Login</h2>
   <form class="box" id="login-form" novalidate>
-    <!-- Function: Username -->
+
     <label for="username">Username</label>
     <input id="username" type="text" autocomplete="username" required>
 
-    <!-- Function: Password -->
     <label for="password">Password</label>
     <input id="password" type="password" autocomplete="current-password" required>
 
     <p class="error hidden" id="error">Please enter your username and password.</p>
     <button type="submit" class="block">Log in</button>
   </form>
+  <div class="box" style="text-align:center">
+    <p>Or continue with Google</p>
+    <div id="google-signin"></div>
+  </div>
   <p class="muted" style="text-align:center">New here? <a href="register.html">Create an account</a></p>
 </main>
 
-<script src="app.js"></script>
+<script src="../js/app.js"></script>
 <script>
-  // Wireframe login: accepts any username/password. The real check
-  // belongs to the ASP.NET Core Identity backend.
   $("login-form").addEventListener("submit", e => {
     e.preventDefault();
     const entered = $("username").value.trim();
@@ -43,11 +47,68 @@
     const isSameAccount = entered.toLowerCase() === (user.username || "").toLowerCase()
                        || entered.toLowerCase() === (user.email || "").toLowerCase();
     if (!isSameAccount) {
-      // Different person than the one saved in this browser: start a fresh profile
       Store.set("user", { name: entered.split("@")[0], username: entered.includes("@") ? "" : entered, email: entered.includes("@") ? entered : "" });
     }
     location.href = "landing.html";
   });
 </script>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+
+<script>
+  async function handleGoogleLogin(response) {
+    try {
+      const result = await fetch("/api/auth/google", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          credential: response.credential
+        })
+      });
+
+      const data = await result.json();
+
+      if (!result.ok) {
+        throw new Error(
+          data.error || data.message || "Google login failed."
+        );
+      }
+
+      if (data.registrationCompleted === true) {
+        window.location.href = "/";
+      } else {
+        window.location.href = "/frontend/pages/register.html";
+      }
+
+    } catch (error) {
+      alert(error.message);
+    }
+  }
+
+  window.addEventListener("load", () => {
+    if (!window.google?.accounts?.id) {
+      alert("Google Sign-In could not load.");
+      return;
+    }
+
+    google.accounts.id.initialize({
+      client_id: "68906324915-ep5ptlk975jpc0jr0gte8m184hkdlm4p.apps.googleusercontent.com",
+      callback: handleGoogleLogin
+    });
+
+    google.accounts.id.renderButton(
+      document.getElementById("google-signin"),
+      {
+        theme: "outline",
+        size: "large",
+        text: "signin_with"
+      }
+    );
+  });
+</script>
+
 </body>
 </html>
