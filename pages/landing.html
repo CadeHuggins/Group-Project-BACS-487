@@ -13,12 +13,26 @@
   <h2 id="welcome">Landing Page</h2>
   <p class="muted" id="who" style="margin-top: -.5rem"></p>
 
+  <!-- Contents: every page is one click away -->
+   <nav class="box" aria-labelledby="toc-h">
+    <h3 id="toc-h">Contents</h3>
+    <ul class="toc" id="toc"></ul>
+  </nav>
+
   <div class="stats">
     <div class="box"><b id="s-total">0</b>Total</div>
     <div class="box"><b id="s-total">0</b>Total</div>
     <div class="box"><b id="s-applied">0</b>Applied</div>
     <div class="box"><b id="s-interview">0</b>Interviews</div>
     <div class="box"><b id="s-offer">0</b>Offers</div>
+  </div>
+
+  <!-- To-do + reminders -->
+  <div class="box">
+    <h3>To-do and reminders</h3>
+    <p class="muted" style="margin-top:0">Follow-up emails to send and potential jobs to apply for.</p>
+    <ul class="list" id="today-list"></ul>
+    <p style="margin:.75rem 0 0"><a href="todo.html">Open the full to-do list</a></p>
   </div>
  
   <!-- Function: Jobs applied to -->
@@ -40,66 +54,152 @@
         <div><label for="company">Company</label><input id="company" type="text" required></div>
         <div><label for="position">Position</label><input id="position" type="text" required></div>
       </div>
-      <label for="link">Job link</label>
-      <input id="link" type="url" placeholder="https://">
       <div class="row">
         <div><label for="status">Status</label>
-          <select id="status"><option>Applied</option><option>Interview</option><option>Offer</option><option>Rejected</option></select></div>
-        <div><label for="date">Date applied</label><input id="date" type="date"></div>
+          <select id="status"></select></div>
+        <div><label for="location">Location</label><input id="location" type="text" placeholder="City, State or Remote"></div>
       </div>
+      <div class="row">
+        <div><label for="date">Date applied</label><input id="date" type="date"></div>
+        <div><label for="deadline">Application deadline</label><input id="deadline" type="date"></div>
+      </div>
+      <div class="row">
+        <div><label for="follow">Follow-up date</label><input id="follow" type="date"></div>
+        <div><label for="contact">Contact email</label><input id="contact" type="email" placeholder="recruiter@company.com"></div>
+      </div>
+      <p class="hint" id="form-hint"></p>
+      <label for="link">Job link</label>
+      <input id="link" type="url" placeholder="https://">
+      <label for="notes">Notes</label>
+      <textarea id="notes" rows="2"></textarea>
       <button type="submit">Link job</button>
     </form>
   </div>
 </main>
+
+<!-- Details card shown when hovering over a job row -->
+<div class="hover-card hidden" id="hover-card" role="tooltip"></div>
  
 <script src="app.js"></script>
 <script>
   renderHeader("landing");
   const user = Store.get("user", { name: "Student" });
-  $("welcome").textContent = "Welcome, " + user.name;
+  $("welcome").textContent = "Welcome, " + (user.name || "Student");
   $("who").textContent = user.email ? "Signed in as " + user.email : "";
+  $("toc").innerHTML = PAGES.map(p => `<li><a href="${p.href}"><b>${p.label}</b><span>${p.desc}</span></a></li>`).join("");
  
   let jobs = Store.get("jobs", []);
+  $("status").innerHTML = STATUSES.map(s => `<option ${s === "Applied" ? "selected" : ""}>${s}</option>`).join("");
   $("date").value = ymd(new Date());
  
+  /* ----- Table + stats + reminders ----- */
+  function followCell(j) {
+    if (j.status !== "Applied" && j.status !== "Interview") return "-";
+    if (j.followUpSent) return "Sent";
+    if (!j.followUp) return "-";
+    return daysUntil(j.followUp) <= 0 ? `<span class="late">${niceDate(j.followUp)}</span>` : niceDate(j.followUp);
+  }
+ 
   function render() {
+    hideCard();
     const count = s => jobs.filter(j => j.status === s).length;
     $("s-total").textContent = jobs.length;
+    $("s-potential").textContent = count("Potential");
     $("s-applied").textContent = count("Applied");
     $("s-interview").textContent = count("Interview");
     $("s-offer").textContent = count("Offer");
+    $("today-list").innerHTML = notifHtml(getNotifications().slice(0, 5));
  
     $("jobs").innerHTML = jobs.length ? jobs.map(j => `
-      <tr>
+      <tr data-id="${j.id}" tabindex="0">
         <td><b>${esc(j.company)}</b></td>
         <td>${esc(j.position)}</td>
         <td><select class="status s-${j.status}" data-id="${j.id}" aria-label="Status for ${esc(j.company)}">
           ${STATUSES.map(s => `<option ${s === j.status ? "selected" : ""}>${s}</option>`).join("")}</select></td>
-        <td>${esc(j.date || "-")}</td>
-        <td>${j.link ? `<a href="${esc(j.link)}" target="_blank" rel="noopener">Open</a>` : "-"}</td>
+        <td>${j.deadline ? niceDate(j.deadline) : "-"}</td>
+        <td>${followCell(j)}</td>
         <td><button class="small danger" data-del="${j.id}">Remove</button></td>
       </tr>`).join("")
       : `<tr><td colspan="6" class="empty">You haven't added any jobs yet. Use the Link job form below.</td></tr>`;
+    refreshBell();
   }
+  window.onDataChanged = () => { jobs = Store.get("jobs", []); render(); };
  
-  $("link-form").addEventListener("submit", e => {
-    e.preventDefault();
-    jobs.unshift({ id: Date.now(), company: $("company").value.trim(), position: $("position").value.trim(),
-      link: $("link").value.trim(), status: $("status").value, date: $("date").value });
-    Store.set("jobs", jobs);
-    e.target.reset();
-    $("date").value = ymd(new Date());
-    render();
-    toast("Job linked");
+  /* ----- Hover card with every saved detail ----- */
+  const card = $("hover-card");
+  let hideTimer = null, currentRow = null;
+ 
+  function cardHtml(j) {
+    const none = '<span class="muted">Not added</span>';
+    const follow = (j.status === "Applied" || j.status === "Interview")
+      ? (j.followUpSent ? "Email sent" : (j.followUp ? niceDate(j.followUp) + " (" + dueText(j.followUp) + ")" : none))
+      : none;
+    return `
+      <h4>${esc(j.company)}</h4>
+      <p class="sub">${esc(j.position)}</p>
+      <dl>
+        <dt>Status</dt><dd><span class="badge">${esc(j.status)}</span></dd>
+        <dt>Location</dt><dd>${j.location ? esc(j.location) : none}</dd>
+        <dt>Date applied</dt><dd>${j.date ? niceDate(j.date) : none}</dd>
+        <dt>Deadline</dt><dd>${j.deadline ? niceDate(j.deadline) + " (" + dueText(j.deadline) + ")" : none}</dd>
+        <dt>Follow-up</dt><dd>${follow}</dd>
+        <dt>Contact email</dt><dd>${j.contact ? esc(j.contact) : none}</dd>
+        <dt>Job link</dt><dd>${j.link ? `<a href="${esc(j.link)}" target="_blank" rel="noopener">Open posting</a>` : none}</dd>
+        <dt>Notes</dt><dd>${j.notes ? esc(j.notes) : none}</dd>
+      </dl>
+      ${(j.status === "Applied" || j.status === "Interview") ? `<a class="btn small" href="${esc(followUpMailto(j))}">Draft follow-up email</a>` : ""}`;
+  }
+  function placeCard(row) {
+    const r = row.getBoundingClientRect(), w = card.offsetWidth, h = card.offsetHeight;
+    const left = Math.min(Math.max(8, r.left + 24), window.innerWidth - w - 8);
+    let top = r.bottom + 4;
+    if (top + h > window.innerHeight - 8) top = Math.max(8, r.top - h - 4);
+    card.style.left = left + "px";
+    card.style.top = top + "px";
+  }
+  function showCard(row) {
+    clearTimeout(hideTimer);
+    const j = jobs.find(x => x.id === Number(row.dataset.id));
+    if (!j) return;
+    card.innerHTML = cardHtml(j);
+    card.classList.remove("hidden");
+    currentRow = row;
+    placeCard(row);
+  }
+  function hideCard() { clearTimeout(hideTimer); card.classList.add("hidden"); currentRow = null; }
+  function hideCardSoon() { clearTimeout(hideTimer); hideTimer = setTimeout(hideCard, 250); }
+ 
+  $("jobs").addEventListener("mouseover", e => {
+    const row = e.target.closest("tr[data-id]");
+    if (!row) return;
+    if (row !== currentRow) showCard(row); else clearTimeout(hideTimer);
+  });
+  $("jobs").addEventListener("mouseout", e => { if (e.target.closest("tr[data-id]")) hideCardSoon(); });
+  $("jobs").addEventListener("focusin", e => { const row = e.target.closest("tr[data-id]"); if (row && row !== currentRow) showCard(row); });
+  $("jobs").addEventListener("focusout", hideCardSoon);
+  card.addEventListener("mouseenter", () => clearTimeout(hideTimer));
+  card.addEventListener("mouseleave", hideCardSoon);
+  card.addEventListener("focusin", () => clearTimeout(hideTimer));
+  card.addEventListener("focusout", hideCardSoon);
+  document.addEventListener("keydown", e => { if (e.key === "Escape") hideCard(); });
+  window.addEventListener("scroll", hideCard, { passive: true });
+  // Touch screens have no hover: tap a row to open or close the card
+  $("jobs").addEventListener("click", e => {
+    if (!window.matchMedia("(hover: none)").matches || e.target.closest("select, button, a")) return;
+    const row = e.target.closest("tr[data-id]");
+    if (!row) return;
+    if (currentRow === row) hideCard(); else showCard(row);
   });
  
+  /* ----- Table actions ----- */
   $("jobs").addEventListener("change", e => {
     const sel = e.target.closest(".status"); if (!sel) return;
-    jobs.find(j => j.id === Number(sel.dataset.id)).status = sel.value;
+    const j = jobs.find(x => x.id === Number(sel.dataset.id));
+    j.status = sel.value;
+    if (j.status === "Applied" || j.status === "Interview") { j.followUpSent = false; ensureFollowUp(j); }
     Store.set("jobs", jobs);
     render();
   });
- 
   $("jobs").addEventListener("click", e => {
     const b = e.target.closest("[data-del]");
     if (!b || !confirm("Remove this job?")) return;
@@ -108,9 +208,40 @@
     render();
   });
  
+  /* ----- Link job form ----- */
+  function syncForm() {
+    const potential = $("status").value === "Potential";
+    $("date").disabled = potential; $("follow").disabled = potential;
+    $("form-hint").textContent = potential
+      ? "Add an application deadline and we will remind you before it passes."
+      : "Leave the follow-up date blank and we will remind you " + getSettings().followDays + " days after you applied.";
+  }
+  $("status").addEventListener("change", syncForm);
+ 
+  $("link-form").addEventListener("submit", e => {
+    e.preventDefault();
+    const potential = $("status").value === "Potential";
+    const job = {
+      id: Date.now(), company: $("company").value.trim(), position: $("position").value.trim(),
+      status: $("status").value, location: $("location").value.trim(),
+      date: potential ? "" : $("date").value, deadline: $("deadline").value,
+      followUp: potential ? "" : $("follow").value, followUpSent: false,
+      contact: $("contact").value.trim(), link: $("link").value.trim(), notes: $("notes").value.trim()
+    };
+    ensureFollowUp(job);
+    jobs.unshift(job);
+    Store.set("jobs", jobs);
+    e.target.reset();
+    $("status").value = "Applied";
+    $("date").value = ymd(new Date());
+    syncForm();
+    render();
+    toast("Job linked");
+  });
+ 
+  syncForm();
   render();
 </script>
 </body>
 </html>
-</main>
 </body>
