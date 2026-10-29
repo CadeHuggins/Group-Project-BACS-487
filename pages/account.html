@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Account Page | Application Tracker</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
  
@@ -14,29 +14,27 @@
   <h2>Account Page</h2>
  
   <div class="two">
-    <!-- Function: Profile -->
-    <form class="box" id="profile-form">
+    <!-- Link to the Profile page -->
+    <div class="box">
       <h3>Profile</h3>
-      <label for="name">Full name</label><input id="name" type="text">
-      <label for="year">Year in school</label>
-      <select id="year"><option>Freshman</option><option>Sophomore</option><option>Junior</option><option>Senior</option><option>Graduate</option></select>
-      <label for="major">Major</label><input id="major" type="text">
-      <button type="submit">Save profile</button>
-    </form>
+      <div class="who">
+        <span class="avatar" id="avatar" aria-hidden="true">S</span>
+        <div><b id="a-name">Student</b><span class="muted" id="a-email"></span></div>
+      </div>
+      <ul class="sum" id="profile-sum"></ul>
+      <a class="btn" href="profile.html" style="margin-top:1rem">Edit profile</a>
+    </div>
  
-    <!-- Function: Settings -->
-    <form class="box" id="settings-form">
+    <!-- Link to the Settings page -->
+    <div class="box">
       <h3>Settings</h3>
-      <label for="email">Email</label><input id="email" type="email">
-      <label for="newpw">New password</label><input id="newpw" type="password" autocomplete="new-password">
-      <label class="check"><input type="checkbox" id="opt-remind"> Email me reminders at this address</label>
-      <label class="check"><input type="checkbox" id="opt-weekly"> Weekly progress summary</label>
-      <button type="submit">Save settings</button>
-    </form>
+      <ul class="sum" id="settings-sum"></ul>
+      <a class="btn" href="settings.html" style="margin-top:1rem">Open settings</a>
+    </div>
   </div>
  
   <!-- Function: Job Types -->
-  <div class="box">
+  <div class="box" style="margin-top:1rem">
     <h3>Job Types</h3>
     <p class="muted" style="margin-top:0">Pick the kinds of roles you are looking for.</p>
     <div class="opts" id="types"></div>
@@ -55,31 +53,19 @@
 <script>
   renderHeader("account");
  
-  /* ----- Profile + Settings ----- */
-  const user = Store.get("user", { name: "" });
-  const settings = Store.get("settings", { email: "", remind: true, weekly: false });
-  $("name").value = user.name || "";
-  $("year").value = user.year || "Freshman";
-  $("major").value = user.major || "";
-  $("email").value = user.email || settings.email || "";
-  $("opt-remind").checked = settings.remind;
-  $("opt-weekly").checked = settings.weekly;
+  /* ----- Profile and settings summaries ----- */
+  const user = Store.get("user", {});
+  $("avatar").textContent = ((user.name || "S").trim().charAt(0) || "S").toUpperCase();
+  $("a-name").textContent = user.name || "Student";
+  $("a-email").textContent = user.email || "No email added yet";
+  const row = (k, v) => `<li><span>${k}</span><span>${esc(v || "Not added")}</span></li>`;
+  $("profile-sum").innerHTML = row("School", user.school) + row("Major", user.major) + row("Year", user.year);
  
-  $("profile-form").addEventListener("submit", e => {
-    e.preventDefault();
-    Store.set("user", { ...Store.get("user", {}), name: $("name").value.trim() || "Student", year: $("year").value, major: $("major").value.trim() });
-    toast("Profile saved");
-  });
- 
-  $("settings-form").addEventListener("submit", e => {
-    e.preventDefault();
-    // Password changes are handled by the backend later; we never store it here.
-    const email = $("email").value.trim();
-    Store.set("user", { ...Store.get("user", {}), email });   // same email used on every page
-    Store.set("settings", { remind: $("opt-remind").checked, weekly: $("opt-weekly").checked });
-    $("newpw").value = "";
-    toast("Settings saved");
-  });
+  const s = getSettings();
+  const onoff = v => v ? "On" : "Off";
+  $("settings-sum").innerHTML =
+    row("Login pop-up", onoff(s.popup)) + row("Follow-up reminders", s.followup ? "On, after " + s.followDays + " days" : "Off") +
+    row("Deadline reminders", s.deadline ? "On, " + s.deadlineDays + " days before" : "Off") + row("Event reminders", onoff(s.events));
  
   /* ----- Job Types ----- */
   const TYPES = ["Internship", "Part-time", "Full-time (entry level)", "Co-op", "Research", "Remote"];
@@ -94,14 +80,15 @@
   /* ----- Stats on applied jobs ----- */
   const jobs = Store.get("jobs", []);
   if (!jobs.length) $("stats-sub").textContent = "No jobs linked yet. Add one from the Home page to see your stats.";
-  $("bars").innerHTML = STATUSES.map(s => {
-    const n = jobs.filter(j => j.status === s).length;
+  $("bars").innerHTML = STATUSES.map(st => {
+    const n = jobs.filter(j => j.status === st).length;
     const pct = jobs.length ? Math.round((n / jobs.length) * 100) : 0;
-    return `<div class="bar-row"><span>${s}</span><div class="bar"><i class="${s === "Offer" ? "gold" : ""}" style="width:${pct}%"></i></div><b>${n}</b></div>`;
+    return `<div class="bar-row"><span>${st}</span><div class="bar"><i class="${st === "Offer" ? "gold" : ""}" style="width:${pct}%"></i></div><b>${n}</b></div>`;
   }).join("");
-  if (jobs.length) {
-    const good = jobs.filter(j => j.status === "Interview" || j.status === "Offer").length;
-    $("rate").textContent = "Response rate: " + Math.round((good / jobs.length) * 100) + "% reached interview or offer";
+  const applied = jobs.filter(j => j.status !== "Potential");
+  if (applied.length) {
+    const good = applied.filter(j => j.status === "Interview" || j.status === "Offer").length;
+    $("rate").textContent = "Response rate: " + Math.round((good / applied.length) * 100) + "% of applications reached an interview or offer";
   }
 </script>
 </body>
