@@ -10,7 +10,7 @@
  
 <header>
   <h1>Application <span>Tracker</span></h1>
-  <nav><a href="pages/login.html" class="active">Login</a><a href="pages/register.html">Register</a></nav>
+  <nav><a href="login.html" class="active">Login</a><a href="register.html">Register</a></nav>
 </header>
  
 <main class="narrow">
@@ -46,7 +46,8 @@
       // Different person than the one saved in this browser: start a fresh profile
       Store.set("user", { name: entered.split("@")[0], username: entered.includes("@") ? "" : entered, email: entered.includes("@") ? entered : "" });
     }
-    location.href = "pages/landing.html";
+    resetPopup();
+    location.href = "landing.html";
   });
 </script>
 </body>
