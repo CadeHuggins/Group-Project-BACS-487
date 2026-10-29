@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings | Application Tracker</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+ 
+<header id="header"></header>
+ 
+<main>
+  <h2>Settings</h2>
+ 
+  <form class="box" id="notif-form">
+    <h3>Reminders</h3>
+    <p class="muted" id="email-note" style="margin-top:0"></p>
+    <label class="check"><input type="checkbox" id="s-popup"> Show a pop-up with my reminders when I log in</label>
+    <label class="check"><input type="checkbox" id="s-followup"> Remind me when to send follow-up emails</label>
+    <label class="check"><input type="checkbox" id="s-deadline"> Remind me about deadlines for potential jobs and internships</label>
+    <label class="check"><input type="checkbox" id="s-events"> Remind me about interviews and other events</label>
+    <div class="row">
+      <div>
+        <label for="s-followdays">Follow up after (days)</label>
+        <input id="s-followdays" type="number" min="1" max="30">
+        <p class="hint">New applications get a follow-up date this many days after you apply.</p>
+      </div>
+      <div>
+        <label for="s-deadlinedays">Warn me before a deadline (days)</label>
+        <input id="s-deadlinedays" type="number" min="1" max="30">
+        <p class="hint">Potential jobs show up in your reminders this many days before the deadline.</p>
+      </div>
+    </div>
+    <label class="check"><input type="checkbox" id="s-remind"> Also email me these reminders</label>
+    <label class="check"><input type="checkbox" id="s-weekly"> Send me a weekly progress summary</label>
+    <p class="hint">Emails will be sent once the backend is connected. The reminders in the app already work.</p>
+    <p class="error hidden" id="notif-error"></p>
+    <button type="submit">Save settings</button>
+  </form>
+ 
+  <form class="box" id="pw-form" autocomplete="off">
+    <h3>Change password</h3>
+    <label for="pw-old">Current password</label>
+    <input id="pw-old" type="password" autocomplete="current-password">
+    <div class="row">
+      <div><label for="pw-new">New password</label><input id="pw-new" type="password" autocomplete="new-password"></div>
+      <div><label for="pw-new2">Confirm new password</label><input id="pw-new2" type="password" autocomplete="new-password"></div>
+    </div>
+    <p class="hint">At least 8 characters. The real password is stored by the backend, never in the browser.</p>
+    <p class="error hidden" id="pw-error"></p>
+    <button type="submit">Change password</button>
+  </form>
+ 
+  <div class="box">
+    <h3>Your data</h3>
+    <p class="muted" style="margin-top:0">In this version your information is saved in this browser only.</p>
+    <button type="button" class="alt" id="export">Download my data</button>
+    <button type="button" class="danger" id="clear">Clear jobs, tasks and events</button>
+  </div>
+</main>
+ 
+<script src="app.js"></script>
+<script>
+  renderHeader("settings");
+ 
+  /* ----- Reminders ----- */
+  const current = getSettings();
+  const BOXES = { "s-popup": "popup", "s-followup": "followup", "s-deadline": "deadline", "s-events": "events", "s-remind": "remind", "s-weekly": "weekly" };
+  Object.entries(BOXES).forEach(([id, key]) => $(id).checked = !!current[key]);
+  $("s-followdays").value = current.followDays;
+  $("s-deadlinedays").value = current.deadlineDays;
+ 
+  const me = Store.get("user", {});
+  $("email-note").innerHTML = me.email
+    ? "Reminders are for " + esc(me.email) + ". You can change this on your <a href=\"profile.html\">profile</a>."
+    : "Add your email on your <a href=\"profile.html\">profile</a> to get reminders by email later.";
+ 
+  $("notif-form").addEventListener("submit", e => {
+    e.preventDefault();
+    const fd = Number($("s-followdays").value), dd = Number($("s-deadlinedays").value);
+    const err = $("notif-error");
+    if (!(fd >= 1 && fd <= 30) || !(dd >= 1 && dd <= 30)) { err.textContent = "Days must be a number from 1 to 30."; err.classList.remove("hidden"); return; }
+    err.classList.add("hidden");
+    const next = { ...Store.get("settings", {}), followDays: fd, deadlineDays: dd };
+    Object.entries(BOXES).forEach(([id, key]) => next[key] = $(id).checked);
+    Store.set("settings", next);
+    refreshBell();
+    toast("Settings saved");
+  });
+ 
+  /* ----- Password (checked here, saved by the backend later) ----- */
+  $("pw-form").addEventListener("submit", e => {
+    e.preventDefault();
+    const err = $("pw-error");
+    const fail = m => { err.textContent = m; err.classList.remove("hidden"); };
+    if (!$("pw-old").value) return fail("Enter your current password.");
+    if ($("pw-new").value.length < 8) return fail("The new password must be at least 8 characters.");
+    if ($("pw-new").value !== $("pw-new2").value) return fail("The new passwords do not match.");
+    err.classList.add("hidden");
+    e.target.reset();
+    toast("Password looks good. The backend will save it.");
+  });
+ 
+  /* ----- Your data ----- */
+  function exportMyData() {
+    const out = {};
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith("tracker_")) out[k.slice(8)] = JSON.parse(localStorage.getItem(k));
+      }
+    } catch (e) {}
+    const url = URL.createObjectURL(new Blob([JSON.stringify(out, null, 2)], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = "application-tracker-data.json";
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+  $("export").addEventListener("click", exportMyData);
+  $("clear").addEventListener("click", () => {
+    if (!confirm("Clear all jobs, tasks and events? This cannot be undone. Your profile and settings are kept.")) return;
+    ["jobs", "tasks", "events"].forEach(k => Store.set(k, []));
+    refreshBell();
+    toast("Jobs, tasks and events cleared");
+  });
+</script>
+</body>
+</html>
