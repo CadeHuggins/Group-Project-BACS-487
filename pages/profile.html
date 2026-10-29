@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Profile | Application Tracker</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+ 
+<header id="header"></header>
+ 
+<main>
+  <h2>Profile</h2>
+ 
+  <div class="box">
+    <div class="who">
+      <span class="avatar" id="avatar" aria-hidden="true">S</span>
+      <div><b id="p-title">Student</b><span class="muted" id="p-sub"></span></div>
+    </div>
+  </div>
+ 
+  <form class="box" id="profile-form">
+    <h3>About you</h3>
+    <div class="row">
+      <div><label for="name">Full name</label><input id="name" type="text" autocomplete="name" required></div>
+      <div><label for="email">Email</label><input id="email" type="email" autocomplete="email" placeholder="you@school.edu"></div>
+    </div>
+    <div class="row">
+      <div><label for="phone">Phone (optional)</label><input id="phone" type="tel" autocomplete="tel"></div>
+      <div><label for="username">Username</label><input id="username" type="text" autocomplete="username"></div>
+    </div>
+ 
+    <h3 style="margin-top:1.5rem">School</h3>
+    <div class="row">
+      <div><label for="school">School</label><input id="school" type="text" placeholder="e.g. Montana State University"></div>
+      <div><label for="major">Major</label><input id="major" type="text"></div>
+    </div>
+    <div class="row">
+      <div><label for="year">Year in school</label>
+        <select id="year"><option>Freshman</option><option>Sophomore</option><option>Junior</option><option>Senior</option><option>Graduate</option></select></div>
+      <div><label for="grad">Expected graduation</label><input id="grad" type="month"></div>
+    </div>
+ 
+    <h3 style="margin-top:1.5rem">Links and bio</h3>
+    <label for="site">LinkedIn or portfolio link</label>
+    <input id="site" type="url" placeholder="https://">
+    <label for="bio">Short bio</label>
+    <textarea id="bio" rows="3" placeholder="A sentence or two about what you are looking for"></textarea>
+ 
+    <p class="error hidden" id="error"></p>
+    <button type="submit">Save profile</button>
+    <a class="btn alt" href="account.html">Back to Account</a>
+  </form>
+</main>
+ 
+<script src="app.js"></script>
+<script>
+  renderHeader("profile");
+  const FIELDS = ["name", "email", "phone", "username", "school", "major", "year", "grad", "site", "bio"];
+  const saved = Store.get("user", {});
+  FIELDS.forEach(f => { if (saved[f]) $(f).value = saved[f]; });
+ 
+  function showSummary() {
+    const u = Store.get("user", {});
+    $("avatar").textContent = ((u.name || "S").trim().charAt(0) || "S").toUpperCase();
+    $("p-title").textContent = u.name || "Student";
+    $("p-sub").textContent = [u.year, u.major, u.email].filter(Boolean).join(", ");
+  }
+ 
+  $("profile-form").addEventListener("submit", e => {
+    e.preventDefault();
+    const err = $("error");
+    if (!$("name").value.trim()) { err.textContent = "Please enter your name."; err.classList.remove("hidden"); return; }
+    err.classList.add("hidden");
+    const data = {};
+    FIELDS.forEach(f => data[f] = $(f).value.trim());
+    Store.set("user", { ...Store.get("user", {}), ...data });
+    showSummary();
+    refreshBell();
+    toast("Profile saved");
+  });
+ 
+  showSummary();
+</script>
+</body>
+</html>
