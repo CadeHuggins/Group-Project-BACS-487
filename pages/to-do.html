@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>To-Do List | Application Tracker</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+ 
+<header id="header"></header>
+ 
+<main>
+  <h2>To-Do List</h2>
+ 
+  <!-- Auto reminders: follow-up emails, deadlines, events -->
+  <div class="box">
+    <h3>Reminders from your applications</h3>
+    <p class="muted" style="margin-top:0">Follow-up emails to send, deadlines coming up and events happening soon.</p>
+    <ul class="list" id="auto-list"></ul>
+  </div>
+ 
+  <!-- Potential internships and jobs -->
+  <div class="box">
+    <h3>Potential internships and jobs</h3>
+    <p class="muted" style="margin-top:0">Saved jobs you have not applied to yet, earliest deadline first.</p>
+    <ul class="list act-scope" id="potential"></ul>
+  </div>
+ 
+  <div class="two">
+    <form class="box" id="task-form">
+      <h3>Add a task</h3>
+      <label for="t-title">Task</label>
+      <input id="t-title" type="text" placeholder="e.g. Ask Prof. Lee for a reference" required>
+      <label for="t-due">Due date (optional)</label>
+      <input id="t-due" type="date">
+      <button type="submit">Add task</button>
+    </form>
+    <div class="box">
+      <h3>Progress</h3>
+      <p id="progress-text" style="margin-top:0">0 of 0 tasks done</p>
+      <div class="bar"><i id="progress-bar" style="width:0"></i></div>
+      <button type="button" class="alt small" id="clear-done" style="margin-top:1rem">Clear completed tasks</button>
+    </div>
+  </div>
+ 
+  <div class="box" style="margin-top:1rem">
+    <h3>My tasks</h3>
+    <ul class="list" id="tasks"></ul>
+  </div>
+</main>
+ 
+<script src="app.js"></script>
+<script>
+  renderHeader("todo");
+  let tasks = Store.get("tasks", []);
+ 
+  function renderTodo() {
+    tasks = Store.get("tasks", []);
+    const jobs = Store.get("jobs", []);
+ 
+    // Reminders that come from applications and the calendar
+    $("auto-list").innerHTML = notifHtml(getNotifications().filter(n => n.kind !== "task"));
+ 
+    // Potential jobs
+    const pot = jobs.filter(j => j.status === "Potential").sort((a, b) => (a.deadline || "9999").localeCompare(b.deadline || "9999"));
+    $("potential").innerHTML = pot.length ? pot.map(j => `
+      <li class="notif ${j.deadline && daysUntil(j.deadline) < 0 ? "overdue" : ""}">
+        <div><b>${esc(j.company)}</b>
+          <div class="meta">${esc(j.position)}, ${j.deadline ? "deadline " + niceDate(j.deadline) + " (" + dueText(j.deadline) + ")" : "no deadline set"}</div></div>
+        <div class="actions">
+          <button type="button" class="small" data-act="applied" data-id="${j.id}">Mark applied</button>
+          ${j.link ? `<a class="btn small alt" href="${esc(j.link)}" target="_blank" rel="noopener">Open posting</a>` : ""}
+        </div>
+      </li>`).join("")
+      : `<li class="none">No potential jobs yet. On the Home page, link a job with the status Potential.</li>`;
+ 
+    // My tasks
+    const sorted = [...tasks].sort((a, b) => (a.done - b.done) || (a.due || "9999").localeCompare(b.due || "9999"));
+    $("tasks").innerHTML = sorted.length ? sorted.map(t => {
+      const late = !t.done && t.due && daysUntil(t.due) < 0;
+      return `<li>
+        <label class="check" style="margin:0"><input type="checkbox" data-task="${t.id}" ${t.done ? "checked" : ""}> <span class="${t.done ? "task-done" : ""}">${esc(t.title)}</span></label>
+        <span class="meta ${late ? "late" : ""}">${t.due ? (t.done ? niceDate(t.due) : "Due " + dueText(t.due)) : ""}</span>
+        <button type="button" class="small danger" data-deltask="${t.id}" aria-label="Delete ${esc(t.title)}">&times;</button>
+      </li>`;
+    }).join("") : `<li class="none">No tasks yet. Add one above.</li>`;
+ 
+    const done = tasks.filter(t => t.done).length;
+    $("progress-text").textContent = done + " of " + tasks.length + " tasks done";
+    $("progress-bar").style.width = (tasks.length ? Math.round(done / tasks.length * 100) : 0) + "%";
+    refreshBell();
+  }
+  window.onDataChanged = renderTodo;
+ 
+  $("task-form").addEventListener("submit", e => {
+    e.preventDefault();
+    tasks.unshift({ id: Date.now(), title: $("t-title").value.trim(), due: $("t-due").value, done: false });
+    Store.set("tasks", tasks);
+    e.target.reset();
+    renderTodo();
+    toast("Task added");
+  });
+  $("tasks").addEventListener("change", e => {
+    const c = e.target.closest("[data-task]"); if (!c) return;
+    tasks.find(t => t.id === Number(c.dataset.task)).done = c.checked;
+    Store.set("tasks", tasks); renderTodo();
+  });
+  $("tasks").addEventListener("click", e => {
+    const b = e.target.closest("[data-deltask]"); if (!b) return;
+    tasks = tasks.filter(t => t.id !== Number(b.dataset.deltask));
+    Store.set("tasks", tasks); renderTodo();
+  });
+  $("clear-done").addEventListener("click", () => {
+    tasks = tasks.filter(t => !t.done);
+    Store.set("tasks", tasks); renderTodo(); toast("Completed tasks cleared");
+  });
+ 
+  renderTodo();
+</script>
+</body>
+</html>
