@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Complete Registration | Application Tracker</title>
+  <title>Register | Application Tracker</title>
   <link rel="stylesheet" href="../css/style.css">
 </head>
 <body>
@@ -14,22 +14,41 @@
 </header>
 
 <main class="narrow">
-  <h2>Complete Your Profile</h2>
-  <p>You're signed in with Google. Finish setting up your account.</p>
+  <h2>Create an Account</h2>
 
   <form class="box" id="register-form">
-    <label for="fullname">Full name</label>
-    <input id="fullname" type="text" autocomplete="name" required>
 
-    <label for="email">Google email</label>
-    <input id="email" type="email" readonly>
+    <label for="fullname">Full name</label>
+    <input id="fullname" type="text"
+           autocomplete="name" required>
+
+    <label for="email">Email</label>
+    <input id="email" type="email"
+           autocomplete="email" required>
+
+    <label for="password">Password</label>
+    <input id="password" type="password"
+           autocomplete="new-password"
+           minlength="12" maxlength="128" required>
+
+    <p class="muted">Password must be at least 12 characters.</p>
+
+    <label for="confirm-password">Confirm password</label>
+    <input id="confirm-password" type="password"
+           autocomplete="new-password" required>
 
     <p class="error hidden" id="error" role="alert"></p>
 
     <button type="submit" class="block" id="register-button">
-      Complete Registration
+      Create Account
     </button>
+
   </form>
+
+  <p class="muted" style="text-align:center">
+    Already have an account?
+    <a href="login.html">Log in</a>
+  </p>
 </main>
 
 <script>
@@ -42,54 +61,39 @@
     errorElement.classList.remove("hidden");
   }
 
-  async function loadProfile() {
-    try {
-      const response = await fetch("/api/auth/me", {
-        credentials: "same-origin"
-      });
-
-      if (!response.ok) {
-        window.location.replace("/frontend/pages/login.html");
-        return;
-      }
-
-      const data = await response.json();
-      const student = data.student || data;
-
-      if (student.registration_completed === true ||
-          student.registrationCompleted === true) {
-        window.location.replace("/");
-        return;
-      }
-
-      document.getElementById("fullname").value = student.name || "";
-      document.getElementById("email").value = student.email || "";
-    } catch (error) {
-      showError("Could not load your profile.");
-    }
-  }
-
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     errorElement.classList.add("hidden");
 
     const name = document.getElementById("fullname").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    const confirmPassword =
+      document.getElementById("confirm-password").value;
 
-    if (!name) {
-      return showError("Please enter your full name.");
+    if (!name || !email || !password) {
+      return showError("Please complete all fields.");
+    }
+
+    if (password.length < 12 || password.length > 128) {
+      return showError("Password must be 12–128 characters.");
+    }
+
+    if (password !== confirmPassword) {
+      return showError("Passwords do not match.");
     }
 
     registerButton.disabled = true;
-    registerButton.textContent = "Saving...";
+    registerButton.textContent = "Creating account...";
 
     try {
-      const response = await fetch("/api/auth/complete-registration", {
+      const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         credentials: "same-origin",
-        body: JSON.stringify({ name })
+        body: JSON.stringify({ name, email, password })
       });
 
       const data = await response.json();
@@ -98,16 +102,15 @@
         throw new Error(data.error || "Registration failed.");
       }
 
-      window.location.replace("/");
+      window.location.replace("login.html");
+
     } catch (error) {
       showError(error.message);
     } finally {
       registerButton.disabled = false;
-      registerButton.textContent = "Complete Registration";
+      registerButton.textContent = "Create Account";
     }
   });
-
-  loadProfile();
 </script>
 
 </body>
