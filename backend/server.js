@@ -5,12 +5,58 @@ const session = require("express-session");
 const PgSession = require("connect-pg-simple")(session);
 const argon2 = require("argon2");
 const { OAuth2Client } = require("google-auth-library");
+const helmet = require("helmet");
+const { rateLimit } = require("express-rate-limit");
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const app = express();
-app.set("trust proxy", 1);
+
+if (process.env.NODE_ENV === "production") {
+    app.set("trust proxy", 1);
+}
+
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
+app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginOpenerPolicy: {
+        policy: "same-origin-allow-popups"
+    }
+}));
+
+app.use(express.json({ limit: "100kb" }));
+
+app.use("/api", (req, res, next) => {
+    const protectedMethods = ["POST", "PUT", "PATCH", "DELETE"];
+
+    if (!protectedMethods.includes(req.method)) {
+        return next();
+    }
+
+    const allowedOrigin = process.env.APP_ORIGIN;
+    const requestOrigin = req.get("origin");
+
+    if (!allowedOrigin || requestOrigin !== allowedOrigin) {
+        return res.status(403).json({
+            error: "Unauthorized request origin"
+        });
+    }
+
+    next();
+});
+
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 30,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: {
+        error: "Too many authentication requests. Try again later."
+    }
+});
+
+app.use("/api/auth/login", authLimiter);
+app.use("/api/auth/register", authLimiter);
+app.use("/api/auth/google", authLimiter);
 app.use(express.static(path.join(__dirname, "public")));
 app.use("/frontend", express.static(
   path.join(__dirname, "../frontend")
@@ -40,31 +86,10 @@ app.get("/api/test", (req, res) => {
   });
 });
 
-app.get("/api/database", async (req, res) => {
-  try {
-    const result = await pool.query(
-      "SELECT current_database() AS database"
-    );
-
-    res.json({
-      message: "PostgreSQL connected!",
-      database: result.rows[0].database
-    });
-
-  } catch (error) {
-    console.error("Database error:", error.message);
-
-    res.status(500).json({
-      error: "Database connection failed"
-    });
-  }
-});
-
 app.post("/api/auth/register", async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // Validate input
     if (
       typeof name !== "string" ||
       typeof email !== "string" ||
@@ -234,10 +259,17 @@ app.post("/api/auth/login", async (req, res) => {
   try {
     const { email, password } = req.body || {};
 
-    if (!email || !password) {
-      return res.status(400).json({
-        error: "Email and password are required"
-      });
+    if (
+        typeof email !== "string" ||
+        typeof password !== "string" ||
+        !email.trim() ||
+        !password ||
+        email.length > 255 ||
+        password.length > 128
+    ) {
+        return res.status(400).json({
+            error: "Invalid email or password"
+        });
     }
 
     const result = await pool.query(
@@ -572,7 +604,9 @@ app.post("/api/auth/complete-registration", async (req, res) => {
       });
     }
 
-    const name = req.body.name?.trim();
+    const name = typeof req.body?.name === "string"
+    ? req.body.name.trim()
+    : "";
 
     if (!name || name.length > 150) {
       return res.status(400).json({
