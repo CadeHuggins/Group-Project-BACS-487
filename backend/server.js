@@ -7,6 +7,7 @@ const argon2 = require("argon2");
 const { OAuth2Client } = require("google-auth-library");
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const app = express();
+app.set("trust proxy", 1);
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
@@ -27,7 +28,7 @@ app.use(session({
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    secure: false, // Local HTTP development only
+    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     maxAge: 1000 * 60 * 60 * 24
   }
@@ -606,6 +607,6 @@ app.post("/api/auth/complete-registration", async (req, res) => {
 });
 
 // Start the server
-app.listen(PORT, "127.0.0.1", () => {
-  console.log(`Backend running on port ${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Backend running on port ${PORT}`);
 });
